@@ -1,6 +1,6 @@
 {
-  "id": "power-rebuild-module",
-  "title": "Power Rebuild Critical Effects",
+  "id": "cyberpunk-red-foundry-mini-module",
+  "title": "Mini Module",
   "version": "1.0.0",
   "esmodules": ["main.js"],
   "compatibility": {
