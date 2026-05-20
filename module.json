@@ -1,13 +1,10 @@
 {
   "id": "cyberpunk-red-foundry-mini-module",
+  "type": "module",
   "title": "Cyberpunk Red Mini Module",
   "description": "Adds custom hooks/logic for Cyberpunk RED Foundry gameplay tweaks.",
   "version": "1.0.0",
-  "authors": [
-    {
-      "name": "TheEletricSheep"
-    }
-  ],
+  "authors": [{ "name": "TheEletricSheep" }],
   "compatibility": {
     "minimum": "12",
     "verified": "12"
