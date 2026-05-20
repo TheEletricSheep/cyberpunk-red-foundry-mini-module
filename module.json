@@ -1,0 +1,10 @@
+{
+  "id": "power-rebuild-module",
+  "title": "Power Rebuild Critical Effects",
+  "version": "1.0.0",
+  "esmodules": ["main.js"],
+  "compatibility": {
+    "minimum": "11",
+    "verified": "12"
+  }
+}
