@@ -1,41 +1,14 @@
 Hooks.once("ready", () => {
-  game.powerRebuild ??= {};
-  game.powerRebuild.lastWeaponByActor ??= {};
-
   console.log("Power Rebuild: Ready");
 });
 
 Hooks.on("createChatMessage", async (message) => {
   console.log("Power Rebuild: New chat message");
-  console.log("Power Rebuild: Speaker =", message.speaker);
 
   if (!message?.content) return;
 
   const html = document.createElement("div");
   html.innerHTML = message.content;
-
-  // ==================================================
-  // STORE WEAPON FROM ATTACK CARD
-  // ==================================================
-
-  const attackData = html.querySelector("[data-action='rollDamage']")?.dataset;
-
-  if (attackData?.actorId && attackData?.itemId) {
-    game.powerRebuild.lastWeaponByActor[attackData.actorId] =
-      attackData.itemId;
-
-    console.log(
-      "Power Rebuild: Stored weapon",
-      attackData.itemId,
-      "for actor",
-      attackData.actorId
-    );
-
-    console.log(
-      "Power Rebuild: Storage contents",
-      JSON.stringify(game.powerRebuild.lastWeaponByActor)
-    );
-  }
 
   // ==================================================
   // CRITICAL DAMAGE DETECTION
@@ -50,16 +23,11 @@ Hooks.on("createChatMessage", async (message) => {
 
   if (!isCrit) return;
 
-  console.log("Power Rebuild: Crit text =", critText);
-
   const actorId = message.speaker?.actor;
 
   console.log("Power Rebuild: Actor ID =", actorId);
 
-  if (!actorId) {
-    console.warn("Power Rebuild: No actor on damage card.");
-    return;
-  }
+  if (!actorId) return;
 
   const actor = game.actors.get(actorId);
 
@@ -67,32 +35,21 @@ Hooks.on("createChatMessage", async (message) => {
 
   if (!actor) return;
 
-  console.log(
-    "Power Rebuild: Storage contents at crit",
-    JSON.stringify(game.powerRebuild.lastWeaponByActor)
+  // ==================================================
+  // FIND WEAPON WITH "(POWER)" IN NAME
+  // ==================================================
+
+  const item = actor.items.find(i =>
+    i.type === "weapon" &&
+    i.name?.toLowerCase().includes("(power)")
   );
 
-  const itemId =
-    game.powerRebuild.lastWeaponByActor?.[actorId];
-
-  console.log(
-    "Power Rebuild: Recovered weapon ID =",
-    itemId
-  );
-
-  if (!itemId) {
-    ui.notifications.warn(
-      "Power Rebuild: Crit detected but no previous weapon was recorded."
-    );
-    return;
-  }
-
-  const item = actor.items.get(itemId);
-
-  console.log("Power Rebuild: Weapon =", item);
+  console.log("Power Rebuild: Power Weapon =", item);
 
   if (!item) {
-    console.warn("Power Rebuild: Weapon not found on actor.");
+    console.log(
+      "Power Rebuild: No weapon with '(Power)' found."
+    );
     return;
   }
 
