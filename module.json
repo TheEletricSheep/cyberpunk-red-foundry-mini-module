@@ -7,5 +7,8 @@
     "minimum": "12",
     "verified": "12"
   },
-  "esmodules": ["module/main.js"]
+  "esmodules": ["module/main.js"],
+  "url": "https://github.com/TheEletricSheep/cyberpunk-red-foundry-mini-module",
+  "manifest": "https://raw.githubusercontent.com/TheEletricSheep/cyberpunk-red-foundry-mini-module/main/module.json",
+  "download": "https://github.com/TheEletricSheep/cyberpunk-red-foundry-mini-module/archive/refs/heads/main.zip"
 }
