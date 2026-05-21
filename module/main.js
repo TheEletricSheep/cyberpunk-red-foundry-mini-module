@@ -1,19 +1,45 @@
+let lastWeaponByActor = {};
+
 Hooks.on("createChatMessage", async (message) => {
   console.log("Power Rebuild: New chat message");
 
   const html = document.createElement("div");
   html.innerHTML = message.content;
 
-  // Detect critical damage
-  const critText = html.querySelector(".d6-data-div")?.textContent || "";
+  // ==================================================
+  // STEP 1: Remember weapon from attack cards
+  // ==================================================
+
+  const attackData = html.querySelector("[data-action='rollDamage']")?.dataset;
+
+  if (attackData?.actorId && attackData?.itemId) {
+    lastWeaponByActor[attackData.actorId] = attackData.itemId;
+
+    console.log(
+      "Power Rebuild: Stored weapon",
+      attackData.itemId,
+      "for actor",
+      attackData.actorId
+    );
+  }
+
+  // ==================================================
+  // STEP 2: Detect critical damage cards
+  // ==================================================
+
+  const critText =
+    html.querySelector(".d6-data-div")?.textContent || "";
+
   const isCrit = critText.includes("Critical Damage");
 
   console.log("Power Rebuild: Crit check =", isCrit);
-  console.log("Power Rebuild: Crit text =", critText);
 
   if (!isCrit) return;
 
-  // Actor
+  // ==================================================
+  // STEP 3: Get actor
+  // ==================================================
+
   const actorId = message.speaker?.actor;
 
   console.log("Power Rebuild: Actor ID =", actorId);
@@ -26,22 +52,17 @@ Hooks.on("createChatMessage", async (message) => {
 
   if (!actor) return;
 
-  // Show all item IDs in the message
-  const itemElement = html.querySelector("[data-item-id]");
-  console.log("Power Rebuild: Item element =", itemElement);
+  // ==================================================
+  // STEP 4: Recover weapon from previous attack card
+  // ==================================================
 
-  const itemId =
-    message.flags?.cyberpunkred?.itemId ||
-    itemElement?.dataset?.itemId;
+  const itemId = lastWeaponByActor[actorId];
 
-  console.log("Power Rebuild: Item ID =", itemId);
-
-  // If CPR isn't storing item IDs, dump the whole message
-  console.log("Power Rebuild: Message =", message);
+  console.log("Power Rebuild: Recovered weapon ID =", itemId);
 
   if (!itemId) {
     ui.notifications.warn(
-      "Power Rebuild: Crit detected but no weapon ID found."
+      "Power Rebuild: Crit detected but no previous weapon was recorded."
     );
     return;
   }
@@ -52,13 +73,17 @@ Hooks.on("createChatMessage", async (message) => {
 
   if (!item) return;
 
+  // ==================================================
+  // STEP 5: Check upgrades
+  // ==================================================
+
   const upgradeIds = item.system.installedItems?.list ?? [];
 
   console.log("Power Rebuild: Upgrade IDs =", upgradeIds);
 
   const upgrades = upgradeIds
     .map(id => actor.items.get(id))
-    .filter(upg => upg);
+    .filter(Boolean);
 
   console.log("Power Rebuild: Upgrades =", upgrades);
 
@@ -69,6 +94,10 @@ Hooks.on("createChatMessage", async (message) => {
   console.log("Power Rebuild: Found =", powerRebuild);
 
   if (!powerRebuild) return;
+
+  // ==================================================
+  // STEP 6: Execute macro
+  // ==================================================
 
   console.log("Power Rebuild triggered!");
 
