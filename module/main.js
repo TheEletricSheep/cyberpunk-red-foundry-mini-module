@@ -1,4 +1,9 @@
-let lastWeaponByActor = {};
+Hooks.once("ready", () => {
+  game.powerRebuild ??= {};
+  game.powerRebuild.lastWeaponByActor ??= {};
+
+  console.log("Power Rebuild: Ready");
+});
 
 Hooks.on("createChatMessage", async (message) => {
   console.log("Power Rebuild: New chat message");
@@ -16,13 +21,19 @@ Hooks.on("createChatMessage", async (message) => {
   const attackData = html.querySelector("[data-action='rollDamage']")?.dataset;
 
   if (attackData?.actorId && attackData?.itemId) {
-    lastWeaponByActor[attackData.actorId] = attackData.itemId;
+    game.powerRebuild.lastWeaponByActor[attackData.actorId] =
+      attackData.itemId;
 
     console.log(
       "Power Rebuild: Stored weapon",
       attackData.itemId,
       "for actor",
       attackData.actorId
+    );
+
+    console.log(
+      "Power Rebuild: Storage contents",
+      JSON.stringify(game.powerRebuild.lastWeaponByActor)
     );
   }
 
@@ -57,11 +68,12 @@ Hooks.on("createChatMessage", async (message) => {
   if (!actor) return;
 
   console.log(
-    "Power Rebuild: lastWeaponByActor =",
-    lastWeaponByActor
+    "Power Rebuild: Storage contents at crit",
+    JSON.stringify(game.powerRebuild.lastWeaponByActor)
   );
 
-  const itemId = lastWeaponByActor[actorId];
+  const itemId =
+    game.powerRebuild.lastWeaponByActor?.[actorId];
 
   console.log(
     "Power Rebuild: Recovered weapon ID =",
