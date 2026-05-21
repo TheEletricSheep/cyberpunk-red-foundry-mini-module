@@ -2,12 +2,15 @@ let lastWeaponByActor = {};
 
 Hooks.on("createChatMessage", async (message) => {
   console.log("Power Rebuild: New chat message");
+  console.log("Power Rebuild: Speaker =", message.speaker);
+
+  if (!message?.content) return;
 
   const html = document.createElement("div");
   html.innerHTML = message.content;
 
   // ==================================================
-  // STEP 1: Remember weapon from attack cards
+  // STORE WEAPON FROM ATTACK CARD
   // ==================================================
 
   const attackData = html.querySelector("[data-action='rollDamage']")?.dataset;
@@ -24,7 +27,7 @@ Hooks.on("createChatMessage", async (message) => {
   }
 
   // ==================================================
-  // STEP 2: Detect critical damage cards
+  // CRITICAL DAMAGE DETECTION
   // ==================================================
 
   const critText =
@@ -36,15 +39,16 @@ Hooks.on("createChatMessage", async (message) => {
 
   if (!isCrit) return;
 
-  // ==================================================
-  // STEP 3: Get actor
-  // ==================================================
+  console.log("Power Rebuild: Crit text =", critText);
 
   const actorId = message.speaker?.actor;
 
   console.log("Power Rebuild: Actor ID =", actorId);
 
-  if (!actorId) return;
+  if (!actorId) {
+    console.warn("Power Rebuild: No actor on damage card.");
+    return;
+  }
 
   const actor = game.actors.get(actorId);
 
@@ -52,13 +56,17 @@ Hooks.on("createChatMessage", async (message) => {
 
   if (!actor) return;
 
-  // ==================================================
-  // STEP 4: Recover weapon from previous attack card
-  // ==================================================
+  console.log(
+    "Power Rebuild: lastWeaponByActor =",
+    lastWeaponByActor
+  );
 
   const itemId = lastWeaponByActor[actorId];
 
-  console.log("Power Rebuild: Recovered weapon ID =", itemId);
+  console.log(
+    "Power Rebuild: Recovered weapon ID =",
+    itemId
+  );
 
   if (!itemId) {
     ui.notifications.warn(
@@ -71,33 +79,37 @@ Hooks.on("createChatMessage", async (message) => {
 
   console.log("Power Rebuild: Weapon =", item);
 
-  if (!item) return;
-
-  // ==================================================
-  // STEP 5: Check upgrades
-  // ==================================================
+  if (!item) {
+    console.warn("Power Rebuild: Weapon not found on actor.");
+    return;
+  }
 
   const upgradeIds = item.system.installedItems?.list ?? [];
 
-  console.log("Power Rebuild: Upgrade IDs =", upgradeIds);
+  console.log(
+    "Power Rebuild: Upgrade IDs =",
+    upgradeIds
+  );
 
   const upgrades = upgradeIds
     .map(id => actor.items.get(id))
     .filter(Boolean);
 
-  console.log("Power Rebuild: Upgrades =", upgrades);
+  console.log(
+    "Power Rebuild: Upgrades =",
+    upgrades
+  );
 
   const powerRebuild = upgrades.find(upg =>
     upg.name?.toLowerCase().includes("power rebuild")
   );
 
-  console.log("Power Rebuild: Found =", powerRebuild);
+  console.log(
+    "Power Rebuild: Found upgrade =",
+    powerRebuild
+  );
 
   if (!powerRebuild) return;
-
-  // ==================================================
-  // STEP 6: Execute macro
-  // ==================================================
 
   console.log("Power Rebuild triggered!");
 
@@ -105,11 +117,12 @@ Hooks.on("createChatMessage", async (message) => {
 
   console.log("Power Rebuild: Macro =", macro);
 
-  if (macro) {
-    await macro.execute();
-  } else {
+  if (!macro) {
     ui.notifications.warn(
       "Power Rebuild macro not found."
     );
+    return;
   }
+
+  await macro.execute();
 });
