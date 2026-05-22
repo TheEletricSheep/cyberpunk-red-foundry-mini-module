@@ -1,4 +1,3 @@
-Hooks.on("createChatMessage", async (message) => {
 Hooks.once("ready", () => {
   console.log("Power Rebuild: Ready");
 });
@@ -10,6 +9,7 @@ Hooks.on("createChatMessage", async (message) => {
 
   const html = document.createElement("div");
   html.innerHTML = message.content;
+
   const critText =
     html.querySelector(".d6-data-div")?.textContent || "";
 
@@ -20,7 +20,6 @@ Hooks.on("createChatMessage", async (message) => {
   if (!isCrit) return;
 
   console.log("Power Rebuild: CRIT DETECTED");
-
 
   const weaponName = html.querySelector(
     ".chat-rollTitle-stat .text-center"
@@ -69,4 +68,3 @@ Hooks.on("createChatMessage", async (message) => {
     `${weaponName} triggered Power Rebuild`
   );
 });
-  });
