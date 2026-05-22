@@ -1,4 +1,4 @@
 import "./powerRebuild.js";
-import "./ammo changes.js";
+import "./ammochanges.js";
 
 console.log("Cyberpunk Red Mini Module Loaded");
