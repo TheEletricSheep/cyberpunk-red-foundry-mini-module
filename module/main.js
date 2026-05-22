@@ -9,11 +9,6 @@ Hooks.on("createChatMessage", async (message) => {
 
   const html = document.createElement("div");
   html.innerHTML = message.content;
-
-  // ==========================================
-  // CRITICAL DAMAGE DETECTION
-  // ==========================================
-
   const critText =
     html.querySelector(".d6-data-div")?.textContent || "";
 
@@ -25,9 +20,6 @@ Hooks.on("createChatMessage", async (message) => {
 
   console.log("Power Rebuild: CRIT DETECTED");
 
-  // ==========================================
-  // GET WEAPON NAME FROM DAMAGE CARD
-  // ==========================================
 
   const weaponName = html.querySelector(
     ".chat-rollTitle-stat .text-center"
@@ -55,10 +47,6 @@ Hooks.on("createChatMessage", async (message) => {
   console.log(
     `Power Rebuild triggered by ${weaponName}`
   );
-
-  // ==========================================
-  // EXECUTE MACRO
-  // ==========================================
 
   const macro = game.macros.getName("Power Rebuild");
 
