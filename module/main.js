@@ -25,6 +25,11 @@ console.log(
 
 const macro = game.macros.getName("Power Rebuild");
 
+console.log(
+  "Power Rebuild: Macro =",
+  macro
+);
+
 if (!macro) {
   ui.notifications.warn(
     "Power Rebuild macro not found."
