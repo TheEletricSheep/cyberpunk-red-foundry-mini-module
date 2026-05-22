@@ -24,53 +24,36 @@ Hooks.on("createChatMessage", async (message) => {
   if (!isCrit) return;
 
   console.log("Power Rebuild: CRIT DETECTED");
-  console.log("Power Rebuild: Crit text =", critText);
 
   // ==========================================
-  // GET ACTOR
+  // GET WEAPON NAME FROM DAMAGE CARD
   // ==========================================
 
-  const actorId = message.speaker?.actor;
-
-  console.log("Power Rebuild: Actor ID =", actorId);
-
-  if (!actorId) {
-    console.warn("Power Rebuild: No actor found.");
-    return;
-  }
-
-  const actor = game.actors.get(actorId);
-
-  console.log("Power Rebuild: Actor =", actor);
-
-  if (!actor) {
-    console.warn("Power Rebuild: Actor not found.");
-    return;
-  }
-
-  // ==========================================
-  // FIND WEAPON WITH "(POWER)" IN NAME
-  // ==========================================
-
-  const powerWeapon = actor.items.find(i =>
-    i.type === "weapon" &&
-    i.name?.toLowerCase().includes("(power)")
-  );
+  const weaponName = html.querySelector(
+    ".chat-rollTitle-stat .text-center"
+  )?.textContent?.trim();
 
   console.log(
-    "Power Rebuild: Power Weapon =",
-    powerWeapon
+    "Power Rebuild: Weapon Name =",
+    weaponName
   );
 
-  if (!powerWeapon) {
+  if (!weaponName) {
     console.log(
-      "Power Rebuild: No weapon with '(Power)' found."
+      "Power Rebuild: No weapon name found in card."
+    );
+    return;
+  }
+
+  if (!weaponName.toLowerCase().includes("(power)")) {
+    console.log(
+      "Power Rebuild: Weapon is not a Power weapon."
     );
     return;
   }
 
   console.log(
-    `Power Rebuild triggered by ${powerWeapon.name}`
+    `Power Rebuild triggered by ${weaponName}`
   );
 
   // ==========================================
@@ -94,6 +77,6 @@ Hooks.on("createChatMessage", async (message) => {
   await macro.execute();
 
   ui.notifications.info(
-    `${powerWeapon.name} triggered Power Rebuild`
+    `${weaponName} triggered Power Rebuild`
   );
-});
+});v
