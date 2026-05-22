@@ -1,3 +1,4 @@
+console.log("=== powerRebuild.js loaded ===");
 Hooks.once("ready", () => {
   console.log("Power Rebuild: Ready");
 });
