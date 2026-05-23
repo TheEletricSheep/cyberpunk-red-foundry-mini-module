@@ -2,7 +2,7 @@ Hooks.on("createChatMessage", async (message) => {
   const html = message.content;
 
   // Only CPR attack cards
-  if (!html.includes('data-action="rollDamage"')) return;
+  if (!html.includes("data-action=\"rollDamage\"")) return;
   if (!html.includes("CPR.rolls.attack")) return;
 
   const parser = document.createElement("div");
