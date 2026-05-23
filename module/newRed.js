@@ -1,25 +1,26 @@
 Hooks.on("createChatMessage", async (message) => {
+
   const html = message.content;
 
-  // Only CPR attack cards
-  if (!html.includes("data-action=\"rollDamage\"")) return;
-  if (!html.includes("CPR.rolls.attack")) return;
+  console.log("NR CHECK MESSAGE:");
+  console.log(html);
+
+  // Only attack cards
+  if (!html.includes("rollDamage")) return;
 
   const parser = document.createElement("div");
   parser.innerHTML = html;
 
-  const titleBlock = parser.querySelector(".chat-rollTitle-stat");
-  if (!titleBlock) return;
-
-  const weaponName = titleBlock
+  const weaponName = parser
     .querySelector(".text-center")
     ?.textContent
     ?.trim();
 
+  console.log("NR WEAPON:", weaponName);
+
   if (!weaponName) return;
 
-  // Only NR weapons
-if (!weaponName.toLowerCase().includes("(nr)")) return;
+  if (!weaponName.includes("(NR)")) return;
 
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker(),
@@ -40,6 +41,7 @@ if (!weaponName.toLowerCase().includes("(nr)")) return;
       </div>
     `
   });
+
 });
 
 Hooks.on("renderChatMessage", (message, html) => {
