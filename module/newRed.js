@@ -1,54 +1,105 @@
-Hooks.on("chatMessage", async (chatLog, message, chatData) => {
+Hooks.on("createChatMessage", async (message) => {
 
-  const match = message.match(/^\/newred\s+(.+)$/i);
+  const content = message.content;
 
-  if (!match) return;
+  // Only attack cards
+  if (!content.includes('data-action="rollDamage"')) return;
 
-  const formula = match[1];
+  // Only NR weapons
+  if (!content.includes("(NR)")) return;
 
-  try {
+  const actorId = content.match(/data-actor-id="([^"]+)"/)?.[1];
+  const itemId = content.match(/data-item-id="([^"]+)"/)?.[1];
+  const tokenId = content.match(/data-token-id="([^"]+)"/)?.[1];
 
-    const roll1 = await new Roll(formula).evaluate();
-    const roll2 = await new Roll(formula).evaluate();
+  await ChatMessage.create({
+    content: `
+      <div class="nr-card">
+        <h2>New RED Attack</h2>
 
-    const keptRoll =
-      roll1.total >= roll2.total ? roll1 : roll2;
+        <p>Did the attack hit?</p>
 
-    const html = `
-      <div class="dice-roll">
-        <h2>New RED Damage</h2>
+        <button
+          class="nr-hit"
+          data-actor="${actorId}"
+          data-item="${itemId}"
+          data-token="${tokenId}">
+          HIT
+        </button>
 
-        <p>
-          <strong>Roll 1:</strong> ${roll1.total}
-        </p>
-
-        <p>
-          <strong>Roll 2:</strong> ${roll2.total}
-        </p>
-
-        <hr>
-
-        <p>
-          <strong>Kept Highest:</strong>
-          ${keptRoll.total}
-        </p>
+        <button class="nr-miss">
+          MISS
+        </button>
       </div>
-    `;
+    `
+  });
 
-    ChatMessage.create({
-      user: game.user.id,
-      speaker: ChatMessage.getSpeaker(),
-      content: html
-    });
+});
 
-  } catch (err) {
+Hooks.on("renderChatMessage", (message, html) => {
 
-    ui.notifications.error(
-      `Invalid formula: ${formula}`
+  html.find(".nr-hit").click(async (event) => {
+
+    // Prevent double-clicks
+    html.find(".nr-hit").prop("disabled", true);
+    html.find(".nr-miss").prop("disabled", true);
+
+    const roll = await new Roll("5d6kh2").evaluate();
+
+    const keptDice = roll.dice[0].results
+      .filter(r => !r.discarded)
+      .map(r => r.result);
+
+    const isCritical =
+      keptDice.filter(d => d === 6).length >= 2;
+
+    // Create normal CPR damage card
+    ui.chat.processMessage(
+      `/red 0d6+${roll.total} # Custom Weapon`
     );
 
-    console.error(err);
-  }
+    if (isCritical) {
 
-  return false;
+      const targets = Array.from(game.user.targets);
+
+      if (targets.length !== 1) {
+
+        ui.notifications.warn(
+          "Critical hit detected, but exactly one target must be selected."
+        );
+
+        return;
+      }
+
+      const actor = targets[0].actor;
+
+      const currentHp =
+        actor.system.derivedStats.hp.value;
+
+      await actor.update({
+        "system.derivedStats.hp.value":
+          Math.max(0, currentHp - 5)
+      });
+
+      ChatMessage.create({
+        content: `
+          <h3>Critical Damage!</h3>
+          <p>Kept dice: ${keptDice.join(", ")}</p>
+          <p><b>${actor.name}</b> suffers 5 additional direct damage.</p>
+        `
+      });
+    }
+  });
+
+  html.find(".nr-miss").click(() => {
+
+    html.find(".nr-hit").prop("disabled", true);
+    html.find(".nr-miss").prop("disabled", true);
+
+    ChatMessage.create({
+      content: "<p><b>Attack Missed</b></p>"
+    });
+
+  });
+
 });
