@@ -19,7 +19,7 @@ Hooks.on("createChatMessage", async (message) => {
   if (!weaponName) return;
 
   // Only NR weapons
-  if (!weaponName.includes("(NR)")) return;
+if (!weaponName.toLowerCase().includes("(nr)")) return;
 
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker(),
