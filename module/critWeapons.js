@@ -54,14 +54,35 @@ Hooks.on("createChatMessage", async (message) => {
     return;
   }
 
-  const macro =
-    game.macros.getName("Power Rebuild");
+  async function applyCriticalDamage() {
 
-  if (!macro) {
-    ui.notifications.warn(
-      "Power Rebuild macro not found."
-    );
-    return;
+    const targets = Array.from(game.user.targets);
+
+    if (targets.length !== 1) {
+      ui.notifications.warn(
+        "Target exactly one token."
+      );
+      return;
+    }
+
+    const actor = targets[0].actor;
+
+    const currentHp =
+      actor.system.derivedStats.hp.value;
+
+    await actor.update({
+      "system.derivedStats.hp.value":
+        Math.max(0, currentHp - 5)
+    });
+
+    await ChatMessage.create({
+      content: `
+        ${actor.name} suffers
+        <b>5 additional direct damage</b>
+        from critical damage.
+      `
+    });
+
   }
 
   if (isPowerWeapon) {
@@ -70,8 +91,8 @@ Hooks.on("createChatMessage", async (message) => {
       `${weaponName} triggered TWO critical effects`
     );
 
-    await macro.execute();
-    await macro.execute();
+    await applyCriticalDamage();
+    await applyCriticalDamage();
 
     ui.notifications.info(
       `${weaponName} triggered two critical effects`
@@ -83,7 +104,7 @@ Hooks.on("createChatMessage", async (message) => {
       `${weaponName} triggered a critical effect`
     );
 
-    await macro.execute();
+    await applyCriticalDamage();
 
     ui.notifications.info(
       `${weaponName} triggered a critical effect`
