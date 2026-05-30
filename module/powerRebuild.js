@@ -1,10 +1,10 @@
 console.log("=== powerRebuild.js loaded ===");
+
 Hooks.once("ready", () => {
   console.log("Power Rebuild: Ready");
 });
 
 Hooks.on("createChatMessage", async (message) => {
-  console.log("Power Rebuild: New chat message");
 
   if (!message?.content) return;
 
@@ -14,58 +14,50 @@ Hooks.on("createChatMessage", async (message) => {
   const critText =
     html.querySelector(".d6-data-div")?.textContent || "";
 
-  const isCrit = critText.includes("Critical Damage");
-
-  console.log("Power Rebuild: Crit check =", isCrit);
+  const isCrit =
+    critText.includes("Critical Damage");
 
   if (!isCrit) return;
-
-  console.log("Power Rebuild: CRIT DETECTED");
 
   const weaponName = html.querySelector(
     ".chat-rollTitle-stat .text-center"
   )?.textContent?.trim();
 
-  console.log(
-    "Power Rebuild: Weapon Name =",
-    weaponName
-  );
-
-  if (!weaponName) {
-    console.log(
-      "Power Rebuild: No weapon name found in card."
-    );
-    return;
-  }
+  if (!weaponName) return;
 
   if (!weaponName.toLowerCase().includes("(power)")) {
-    console.log(
-      "Power Rebuild: Weapon is not a Power weapon."
-    );
     return;
   }
 
-  console.log(
-    `Power Rebuild triggered by ${weaponName}`
-  );
+  const targets = Array.from(game.user.targets);
 
-  const macro = game.macros.getName("Power Rebuild");
-
-  console.log(
-    "Power Rebuild: Macro =",
-    macro
-  );
-
-  if (!macro) {
+  if (targets.length !== 1) {
     ui.notifications.warn(
-      "Power Rebuild macro not found."
+      "Target exactly one token."
     );
     return;
   }
 
-  await macro.execute();
+  const actor = targets[0].actor;
+
+  const currentHp =
+    actor.system.derivedStats.hp.value;
+
+  await actor.update({
+    "system.derivedStats.hp.value":
+      Math.max(0, currentHp - 5)
+  });
+
+  await ChatMessage.create({
+    content: `
+      ${actor.name} suffers
+      <b>5 additional direct damage</b>
+      from Power Rebuild.
+    `
+  });
 
   ui.notifications.info(
     `${weaponName} triggered Power Rebuild`
   );
+
 });
