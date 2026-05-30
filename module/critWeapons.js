@@ -6,7 +6,7 @@ Hooks.once("ready", () => {
 
 Hooks.on("createChatMessage", async (message) => {
 
-  if (!message?.rolls?.length) return;
+  if (!message?.content) return;
 
   const html = document.createElement("div");
   html.innerHTML = message.content;
@@ -22,38 +22,37 @@ Hooks.on("createChatMessage", async (message) => {
   const isCritWeapon = lowerName.includes("(crit)");
   const isPowerWeapon = lowerName.includes("(power)");
 
-  if (!isCritWeapon && !isPowerWeapon) return;
-
-  const roll = message.rolls[0];
-
-  if (!roll?.dice?.length) return;
-
-  const d6Results = [];
-
-  for (const die of roll.dice) {
-
-    if (die.faces !== 6) continue;
-
-    for (const result of die.results) {
-
-      if (result.discarded) continue;
-
-      d6Results.push(result.result);
-
-    }
+  if (!isCritWeapon && !isPowerWeapon) {
+    return;
   }
 
-  const critDice =
-    d6Results.filter(r => r >= 5);
+  // Only damage cards
+  if (!html.querySelector(".d6-rollcard-data")) {
+    return;
+  }
 
-  const critCount =
-    Math.floor(critDice.length / 2);
+  const dice = [];
 
-  if (critCount < 1) return;
+  html.querySelectorAll(".d6-dice-div img").forEach(img => {
+
+    const match = img.src.match(/d6_(\d)\.svg/i);
+
+    if (match) {
+      dice.push(Number(match[1]));
+    }
+
+  });
 
   console.log(
-    `Crit Weapons: ${weaponName} triggered ${critCount} crit(s)`
+    `${weaponName} damage dice:`,
+    dice
   );
+
+  const critDice = dice.filter(d => d >= 5);
+
+  if (critDice.length < 2) {
+    return;
+  }
 
   const macro =
     game.macros.getName("Power Rebuild");
@@ -65,12 +64,30 @@ Hooks.on("createChatMessage", async (message) => {
     return;
   }
 
-  for (let i = 0; i < critCount; i++) {
-    await macro.execute();
-  }
+  if (isPowerWeapon) {
 
-  ui.notifications.info(
-    `${weaponName} triggered ${critCount} critical effect(s)`
-  );
+    console.log(
+      `${weaponName} triggered TWO critical effects`
+    );
+
+    await macro.execute();
+    await macro.execute();
+
+    ui.notifications.info(
+      `${weaponName} triggered two critical effects`
+    );
+
+  } else {
+
+    console.log(
+      `${weaponName} triggered a critical effect`
+    );
+
+    await macro.execute();
+
+    ui.notifications.info(
+      `${weaponName} triggered a critical effect`
+    );
+  }
 
 });
