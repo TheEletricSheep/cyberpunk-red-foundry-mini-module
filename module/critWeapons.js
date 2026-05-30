@@ -80,14 +80,14 @@ async function applyCriticalDamage() {
     <div class="cpr-block">
       <div
         class="text-normal text-semi"
-        style="margin-left: 8px;"
+        style="margin-left: 12px;"
       >
         Critical Damage
       </div>
 
       <div
         class="text-normal"
-        style="margin-left: 8px;"
+        style="margin-left: 12px;"
       >
         ${actor.name} suffers
         <b>5 direct damage</b>.
