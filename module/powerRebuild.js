@@ -48,14 +48,26 @@ Hooks.on("createChatMessage", async (message) => {
       Math.max(0, currentHp - 5)
   });
 
-  await ChatMessage.create({
-    content: `
-      ${actor.name} suffers
-      <b>5 additional direct damage</b>
-      from Power Rebuild.
-    `
-  });
+    await ChatMessage.create({
+  content: `
+    <div class="cpr-block">
+      <div
+        class="text-normal text-semi"
+        style="margin-left: 12px;"
+      >
+        Critical Damage
+      </div>
 
+      <div
+        class="text-normal"
+        style="margin-left: 12px;"
+      >
+        ${actor.name} suffers
+        <b>5 direct damage</b>.
+      </div>
+    </div>
+  `
+});
   ui.notifications.info(
     `${weaponName} triggered Power Rebuild`
   );
