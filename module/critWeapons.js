@@ -77,12 +77,18 @@ async function applyCriticalDamage() {
 
   await ChatMessage.create({
   content: `
-    <div class="cpr-block" style="padding: 4px 8px;">
-      <div class="text-normal text-semi">
+    <div class="cpr-block">
+      <div
+        class="text-normal text-semi"
+        style="margin-left: 8px;"
+      >
         Critical Damage
       </div>
 
-      <div class="text-normal">
+      <div
+        class="text-normal"
+        style="margin-left: 8px;"
+      >
         ${actor.name} suffers
         <b>5 direct damage</b>.
       </div>
