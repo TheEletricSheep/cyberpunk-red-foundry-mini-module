@@ -54,42 +54,43 @@ Hooks.on("createChatMessage", async (message) => {
     return;
   }
 
-  async function applyCriticalDamage() {
+async function applyCriticalDamage() {
 
-    const targets = Array.from(game.user.targets);
+  const targets = Array.from(game.user.targets);
 
-    if (targets.length !== 1) {
-      ui.notifications.warn(
-        "Target exactly one token."
-      );
-      return;
-    }
-
-    const actor = targets[0].actor;
-
-    const currentHp =
-      actor.system.derivedStats.hp.value;
-
-    await actor.update({
-      "system.derivedStats.hp.value":
-        Math.max(0, currentHp - 5)
-    });
-
-   await ChatMessage.create({
-  content: `
-    <div class="cpr-block">
-      <div class="text-normal text-semi">
-        Critical Damage
-      </div>
-
-      <div class="text-normal">
-        ${actor.name} suffers
-        <b>5 direct damage</b>.
-      </div>
-    </div>
-  `
-
+  if (targets.length !== 1) {
+    ui.notifications.warn(
+      "Target exactly one token."
+    );
+    return;
   }
+
+  const actor = targets[0].actor;
+
+  const currentHp =
+    actor.system.derivedStats.hp.value;
+
+  await actor.update({
+    "system.derivedStats.hp.value":
+      Math.max(0, currentHp - 5)
+  });
+
+  await ChatMessage.create({
+    content: `
+      <div class="cpr-block">
+        <div class="text-normal text-semi">
+          Critical Damage
+        </div>
+
+        <div class="text-normal">
+          ${actor.name} suffers
+          <b>5 direct damage</b>.
+        </div>
+      </div>
+    `
+  });
+
+}
 
   if (isPowerWeapon) {
 
