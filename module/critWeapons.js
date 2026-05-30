@@ -76,12 +76,57 @@ Hooks.on("createChatMessage", async (message) => {
     });
 
     await ChatMessage.create({
-      content: `
-        ${actor.name} suffers
-        <b>5 additional direct damage</b>
-        from critical damage.
-      `
-    });
+  content: `
+<div class="rollcard">
+  <div class="rollcard-top">
+    <div class="cpr-block chat-rollTitle-stat">
+
+      <div class="text-center text-padding-top text-normal text-semi">
+        Critical Damage
+      </div>
+
+      <div class="rollcard-subtitle">
+        <div class="rollcard-subtitle-center text-small">
+          Direct Damage
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="rollcard-bottom">
+    <div class="cpr-block">
+
+      <div class="d6-rollcard-data">
+
+        <div class="d6-dice-div">
+          <img
+            class="d6 d6-60"
+            src="systems/cyberpunk-red-core/icons/dice/black/d6_5.svg"
+          />
+        </div>
+
+        <div class="d6-number-div">
+          <span>5</span>
+        </div>
+
+        <div class="d6-data-div">
+          <div class="text-normal text-semi">
+            ${actor.name}
+          </div>
+
+          <div class="d6-data-details">
+            Suffers 5 direct damage
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+`
+});
 
   }
 
