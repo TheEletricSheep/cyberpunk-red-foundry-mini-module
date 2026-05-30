@@ -56,15 +56,30 @@ Hooks.on("combatRound", async (combat, round) => {
 
   if (results.length > 0) {
 
-    await ChatMessage.create({
-      speaker: {
-        alias: "Burn Damage"
-      },
-      content: `
-        <h3>Burn Damage</h3>
+   await ChatMessage.create({
+  speaker: {
+    alias: "Burn Damage"
+  },
+  content: `
+    <div class="cpr-block">
+
+      <div
+        class="text-normal text-semi"
+        style="margin-left: 12px;"
+      >
+        Burn Damage
+      </div>
+
+      <div
+        class="text-normal"
+        style="margin-left: 12px;"
+      >
         ${results.join("<br>")}
-      `
-    });
+      </div>
+
+    </div>
+  `
+});
 
   }
 
