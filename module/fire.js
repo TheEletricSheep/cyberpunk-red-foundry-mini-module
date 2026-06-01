@@ -2,7 +2,8 @@ Hooks.on("combatRound", async (combat, round) => {
 
   if (!game.user.isGM) return;
 
-  const results = [];
+  const burnResults = [];
+  const mindfireResults = [];
 
   for (const combatant of combat.combatants) {
 
@@ -14,72 +15,132 @@ Hooks.on("combatRound", async (combat, round) => {
       e => e.name.toLowerCase()
     );
 
-    // Fire Immunity prevents all burn damage
-    if (
-      effectNames.includes("fire immunity")
-    ) {
-      continue;
+    // -----------------
+    // Burn Damage
+    // -----------------
+
+    if (!effectNames.includes("fire immunity")) {
+
+      let damage = 0;
+
+      if (
+        effectNames.includes("on fire (deadly)")
+      ) {
+        damage = 6;
+      }
+      else if (
+        effectNames.includes("on fire (strong)")
+      ) {
+        damage = 4;
+      }
+      else if (
+        effectNames.includes("on fire (mild)")
+      ) {
+        damage = 2;
+      }
+
+      if (damage > 0) {
+
+        const currentHp =
+          actor.system.derivedStats.hp.value;
+
+        await actor.update({
+          "system.derivedStats.hp.value":
+            Math.max(0, currentHp - damage)
+        });
+
+        burnResults.push(
+          `${actor.name} suffers <b>${damage} burn damage</b>.`
+        );
+      }
     }
 
-    let damage = 0;
+    // -----------------
+    // Mindfire
+    // -----------------
 
-    if (
-      effectNames.includes("on fire (deadly)")
-    ) {
-      damage = 6;
+    if (effectNames.includes("mindfire")) {
+
+      const currentHp =
+        actor.system.derivedStats.hp.value;
+
+      if (currentHp > 1) {
+
+        await actor.update({
+          "system.derivedStats.hp.value":
+            Math.max(1, currentHp - 1)
+        });
+
+        mindfireResults.push(
+          `${actor.name} suffers <b>1 Mindfire damage</b>.`
+        );
+      }
     }
-    else if (
-      effectNames.includes("on fire (strong)")
-    ) {
-      damage = 4;
-    }
-    else if (
-      effectNames.includes("on fire (mild)")
-    ) {
-      damage = 2;
-    }
-
-    if (damage === 0) continue;
-
-    const currentHp =
-      actor.system.derivedStats.hp.value;
-
-    await actor.update({
-      "system.derivedStats.hp.value":
-        Math.max(0, currentHp - damage)
-    });
-
-    results.push(
-      `${actor.name}: ${damage} burn damage`
-    );
   }
 
-  if (results.length > 0) {
+  // -----------------
+  // Burn Message
+  // -----------------
 
-   await ChatMessage.create({
-  speaker: {
-    alias: "Burn Damage"
-  },
-  content: `
-    <div class="cpr-block">
+  if (burnResults.length > 0) {
 
-      <div
-        class="text-normal text-semi"
-        style="margin-left: 12px;"
-      >
-        Burn Damage
-      </div>
+    await ChatMessage.create({
+      speaker: {
+        alias: "Burn Damage"
+      },
+      content: `
+        <div class="cpr-block">
 
-      <div
-        class="text-normal"
-        style="margin-left: 12px;"
-      >
-        ${results.join("<br>")}
-      </div>
+          <div
+            class="text-normal text-semi"
+            style="margin-left: 12px;"
+          >
+            Burn Damage
+          </div>
 
-    </div>
-  `
-});
+          <div
+            class="text-normal"
+            style="margin-left: 12px;"
+          >
+            ${burnResults.join("<br>")}
+          </div>
+
+        </div>
+      `
+    });
+
+  }
+
+  // -----------------
+  // Mindfire Message
+  // -----------------
+
+  if (mindfireResults.length > 0) {
+
+    await ChatMessage.create({
+      speaker: {
+        alias: "Mindfire"
+      },
+      content: `
+        <div class="cpr-block">
+
+          <div
+            class="text-normal text-semi"
+            style="margin-left: 12px;"
+          >
+            Mindfire
+          </div>
+
+          <div
+            class="text-normal"
+            style="margin-left: 12px;"
+          >
+            ${mindfireResults.join("<br>")}
+          </div>
+
+        </div>
+      `
+    });
 
   }
 
