@@ -19,12 +19,11 @@ Hooks.on("createChatMessage", async (message) => {
 
   const lowerName = weaponName.toLowerCase();
 
-  const isCritWeapon = lowerName.includes("(crit)");
-  const isPowerWeapon = lowerName.includes("(power)");
+  const isCritWeapon =
+    lowerName.includes("(crit)");
 
-  if (!isCritWeapon && !isPowerWeapon) {
-    return;
-  }
+  const isPowerWeapon =
+    lowerName.includes("(power)");
 
   // Only damage cards
   if (!html.querySelector(".d6-rollcard-data")) {
@@ -48,80 +47,98 @@ Hooks.on("createChatMessage", async (message) => {
     dice
   );
 
+  const ammoType = html.querySelector(
+    ".rollcard-subtitle-2-center"
+  )?.textContent?.trim()?.toLowerCase() ?? "";
+
+  const isExplosiveAmmo =
+    ammoType.includes("explosive");
+
   const critDice = dice.filter(d => d >= 5);
 
-  if (critDice.length < 2) {
+  const naturalCrit =
+    critDice.length >= 2;
+
+  console.log(
+    `${weaponName} ammo type:`,
+    ammoType
+  );
+
+  console.log(
+    `${weaponName} natural crit:`,
+    naturalCrit
+  );
+
+  console.log(
+    `${weaponName} explosive ammo:`,
+    isExplosiveAmmo
+  );
+
+  const shouldTrigger =
+    isExplosiveAmmo ||
+    (isCritWeapon && naturalCrit);
+
+  if (!shouldTrigger) {
     return;
   }
 
-async function applyCriticalDamage() {
+  async function applyCriticalDamage() {
 
-  const targets = Array.from(game.user.targets);
+    const targets = Array.from(game.user.targets);
 
-  if (targets.length !== 1) {
-    ui.notifications.warn(
-      "Target exactly one token."
-    );
-    return;
+    if (targets.length !== 1) {
+      ui.notifications.warn(
+        "Target exactly one token."
+      );
+      return;
+    }
+
+    const actor = targets[0].actor;
+
+    const currentHp =
+      actor.system.derivedStats.hp.value;
+
+    await actor.update({
+      "system.derivedStats.hp.value":
+        Math.max(0, currentHp - 5)
+    });
+
+    await ChatMessage.create({
+      content: `
+        <div class="cpr-block">
+          <div
+            class="text-normal text-semi"
+            style="margin-left: 12px;"
+          >
+            Critical Damage
+          </div>
+
+          <div
+            class="text-normal"
+            style="margin-left: 12px;"
+          >
+            ${actor.name} suffers
+            <b>5 direct damage</b>.
+          </div>
+        </div>
+      `
+    });
+
   }
 
-  const actor = targets[0].actor;
+  const triggerCount =
+    isPowerWeapon ? 2 : 1;
 
-  const currentHp =
-    actor.system.derivedStats.hp.value;
+  console.log(
+    `${weaponName} triggered ${triggerCount} critical effect(s)`
+  );
 
-  await actor.update({
-    "system.derivedStats.hp.value":
-      Math.max(0, currentHp - 5)
-  });
-
-  await ChatMessage.create({
-  content: `
-    <div class="cpr-block">
-      <div
-        class="text-normal text-semi"
-        style="margin-left: 12px;"
-      >
-        Critical Damage
-      </div>
-
-      <div
-        class="text-normal"
-        style="margin-left: 12px;"
-      >
-        ${actor.name} suffers
-        <b>5 direct damage</b>.
-      </div>
-    </div>
-  `
-});
-
-}
-
-  if (isPowerWeapon) {
-
-    console.log(
-      `${weaponName} triggered TWO critical effects`
-    );
-
+  for (let i = 0; i < triggerCount; i++) {
     await applyCriticalDamage();
-    await applyCriticalDamage();
-
-    ui.notifications.info(
-      `${weaponName} triggered two critical effects`
-    );
-
-  } else {
-
-    console.log(
-      `${weaponName} triggered a critical effect`
-    );
-
-    await applyCriticalDamage();
-
-    ui.notifications.info(
-      `${weaponName} triggered a critical effect`
-    );
   }
+
+  ui.notifications.info(
+    `${weaponName} triggered ${triggerCount} critical effect${triggerCount > 1 ? "s" : ""}`
+  );
 
 });
