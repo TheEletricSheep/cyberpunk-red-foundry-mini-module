@@ -30,6 +30,20 @@ Hooks.on("createChatMessage", async (message) => {
     return;
   }
 
+  // Ignore normal CPR critical injuries
+  const critText =
+    html.querySelector(".d6-data-div")?.textContent || "";
+
+  const isSystemCritical =
+    critText.includes("Critical Damage");
+
+  if (isSystemCritical) {
+    console.log(
+      `${weaponName}: System critical detected, ignoring module crit`
+    );
+    return;
+  }
+
   const dice = [];
 
   html.querySelectorAll(".d6-dice-div img").forEach(img => {
@@ -54,7 +68,8 @@ Hooks.on("createChatMessage", async (message) => {
   const isExplosiveAmmo =
     ammoType.includes("explosive");
 
-  const critDice = dice.filter(d => d >= 5);
+  const critDice =
+    dice.filter(d => d >= 5);
 
   const naturalCrit =
     critDice.length >= 2;
@@ -74,6 +89,9 @@ Hooks.on("createChatMessage", async (message) => {
     isExplosiveAmmo
   );
 
+  // Module crit conditions:
+  // - Explosive ammo
+  // - OR (CRIT weapon + natural crit)
   const shouldTrigger =
     isExplosiveAmmo ||
     (isCritWeapon && naturalCrit);
@@ -130,7 +148,7 @@ Hooks.on("createChatMessage", async (message) => {
     isPowerWeapon ? 2 : 1;
 
   console.log(
-    `${weaponName} triggered ${triggerCount} critical effect(s)`
+    `${weaponName} triggered ${triggerCount} module critical effect(s)`
   );
 
   for (let i = 0; i < triggerCount; i++) {
