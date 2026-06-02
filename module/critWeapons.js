@@ -20,7 +20,7 @@ Hooks.on("createChatMessage", async (message) => {
   if (!weaponName) return;
 
   // --------------------------------------------------
-  // TRACK ATTACK CARDS FOR RED LACE MELEE DETECTION
+  // TRACK ATTACK CARDS
   // --------------------------------------------------
 
   const isAttackCard =
@@ -38,34 +38,49 @@ Hooks.on("createChatMessage", async (message) => {
       "[data-actor-id]"
     )?.dataset?.actorId;
 
-    if (isMeleeAttack && actorId) {
+    let hasRedLace = false;
 
-      const attackKey =
-        `${actorId}:${weaponName}`;
+    if (actorId) {
 
-      recentAttacks[attackKey] = {
-        melee: true,
-        actorId,
-        timestamp: Date.now()
-      };
+      const attacker =
+        game.actors.get(actorId);
 
-      console.log(
-        `Stored melee attack: ${attackKey}`
-      );
+      if (attacker) {
+
+        const effectNames =
+          attacker.effects.map(
+            e => e.name.toLowerCase()
+          );
+
+        hasRedLace =
+          effectNames.includes("red lace");
+      }
     }
+
+    recentAttacks[weaponName] = {
+      melee: isMeleeAttack,
+      hasRedLace,
+      timestamp: Date.now()
+    };
+
+    console.log(
+      `Stored attack for ${weaponName}`,
+      recentAttacks[weaponName]
+    );
 
     return;
   }
 
   // --------------------------------------------------
-  // DAMAGE CARDS ONLY BELOW THIS POINT
+  // DAMAGE CARDS ONLY
   // --------------------------------------------------
 
   if (!html.querySelector(".d6-rollcard-data")) {
     return;
   }
 
-  const lowerName = weaponName.toLowerCase();
+  const lowerName =
+    weaponName.toLowerCase();
 
   const isCritWeapon =
     lowerName.includes("(crit)");
@@ -73,10 +88,9 @@ Hooks.on("createChatMessage", async (message) => {
   const isPowerWeapon =
     lowerName.includes("(power)");
 
-  // Ignore CPR built-in critical injuries
-
   const critText =
-    html.querySelector(".d6-data-div")?.textContent || "";
+    html.querySelector(".d6-data-div")
+      ?.textContent || "";
 
   const isSystemCritical =
     critText.includes("Critical Damage");
@@ -92,7 +106,9 @@ Hooks.on("createChatMessage", async (message) => {
 
   const dice = [];
 
-  html.querySelectorAll(".d6-dice-div img").forEach(img => {
+  html.querySelectorAll(
+    ".d6-dice-div img"
+  ).forEach(img => {
 
     const match =
       img.src.match(/d6_(\d)\.svg/i);
@@ -102,11 +118,6 @@ Hooks.on("createChatMessage", async (message) => {
     }
 
   });
-
-  console.log(
-    `${weaponName} damage dice:`,
-    dice
-  );
 
   const ammoType =
     html.querySelector(
@@ -122,10 +133,33 @@ Hooks.on("createChatMessage", async (message) => {
   const naturalCrit =
     critDice.length >= 2;
 
-  console.log(
-    `${weaponName} ammo type:`,
-    ammoType
-  );
+  // --------------------------------------------------
+  // RED LACE MELEE CHECK
+  // --------------------------------------------------
+
+  let redLaceMeleeTrigger = false;
+
+  const attackData =
+    recentAttacks[weaponName];
+
+  if (attackData) {
+
+    const age =
+      Date.now() - attackData.timestamp;
+
+    if (
+      age < 60000 &&
+      attackData.melee &&
+      attackData.hasRedLace
+    ) {
+
+      redLaceMeleeTrigger = true;
+
+      console.log(
+        `${weaponName} triggered by Red Lace melee attack`
+      );
+    }
+  }
 
   console.log(
     `${weaponName} natural crit:`,
@@ -137,63 +171,10 @@ Hooks.on("createChatMessage", async (message) => {
     isExplosiveAmmo
   );
 
-  // --------------------------------------------------
-  // RED LACE + MELEE ATTACK DETECTION
-  // --------------------------------------------------
-
-  let redLaceMeleeTrigger = false;
-
-  for (const attackKey in recentAttacks) {
-
-    const attackData =
-      recentAttacks[attackKey];
-
-    if (
-      !attackKey.endsWith(
-        `:${weaponName}`
-      )
-    ) {
-      continue;
-    }
-
-    const age =
-      Date.now() - attackData.timestamp;
-
-    if (age > 60000) {
-      continue;
-    }
-
-    const attacker =
-      game.actors.get(
-        attackData.actorId
-      );
-
-    if (!attacker) {
-      continue;
-    }
-
-    const hasRedLace =
-      attacker.effects.some(
-        e =>
-          e.name
-            ?.toLowerCase()
-            .includes("red lace")
-      );
-
-    if (
-      attackData.melee &&
-      hasRedLace
-    ) {
-
-      redLaceMeleeTrigger = true;
-
-      console.log(
-        `${weaponName} triggered by Red Lace melee attack`
-      );
-
-      break;
-    }
-  }
+  console.log(
+    `${weaponName} red lace melee:`,
+    redLaceMeleeTrigger
+  );
 
   // --------------------------------------------------
   // TRIGGER CONDITIONS
