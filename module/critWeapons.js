@@ -1,5 +1,7 @@
 console.log("=== critWeapons.js loaded ===");
 
+const recentAttacks = {};
+
 Hooks.once("ready", () => {
   console.log("Crit Weapons: Ready");
 });
@@ -17,6 +19,52 @@ Hooks.on("createChatMessage", async (message) => {
 
   if (!weaponName) return;
 
+  // --------------------------------------------------
+  // TRACK ATTACK CARDS FOR RED LACE MELEE DETECTION
+  // --------------------------------------------------
+
+  const isAttackCard =
+    html.querySelector(".d10-rollcard-data");
+
+  if (isAttackCard) {
+
+    const cardText =
+      html.textContent?.toLowerCase() ?? "";
+
+    const isMeleeAttack =
+      cardText.includes("melee weapon");
+
+    const actorId = html.querySelector(
+      "[data-actor-id]"
+    )?.dataset?.actorId;
+
+    if (isMeleeAttack && actorId) {
+
+      const attackKey =
+        `${actorId}:${weaponName}`;
+
+      recentAttacks[attackKey] = {
+        melee: true,
+        actorId,
+        timestamp: Date.now()
+      };
+
+      console.log(
+        `Stored melee attack: ${attackKey}`
+      );
+    }
+
+    return;
+  }
+
+  // --------------------------------------------------
+  // DAMAGE CARDS ONLY BELOW THIS POINT
+  // --------------------------------------------------
+
+  if (!html.querySelector(".d6-rollcard-data")) {
+    return;
+  }
+
   const lowerName = weaponName.toLowerCase();
 
   const isCritWeapon =
@@ -25,12 +73,8 @@ Hooks.on("createChatMessage", async (message) => {
   const isPowerWeapon =
     lowerName.includes("(power)");
 
-  // Only damage cards
-  if (!html.querySelector(".d6-rollcard-data")) {
-    return;
-  }
+  // Ignore CPR built-in critical injuries
 
-  // Ignore normal CPR critical injuries
   const critText =
     html.querySelector(".d6-data-div")?.textContent || "";
 
@@ -38,9 +82,11 @@ Hooks.on("createChatMessage", async (message) => {
     critText.includes("Critical Damage");
 
   if (isSystemCritical) {
+
     console.log(
       `${weaponName}: System critical detected, ignoring module crit`
     );
+
     return;
   }
 
@@ -48,7 +94,8 @@ Hooks.on("createChatMessage", async (message) => {
 
   html.querySelectorAll(".d6-dice-div img").forEach(img => {
 
-    const match = img.src.match(/d6_(\d)\.svg/i);
+    const match =
+      img.src.match(/d6_(\d)\.svg/i);
 
     if (match) {
       dice.push(Number(match[1]));
@@ -61,9 +108,10 @@ Hooks.on("createChatMessage", async (message) => {
     dice
   );
 
-  const ammoType = html.querySelector(
-    ".rollcard-subtitle-2-center"
-  )?.textContent?.trim()?.toLowerCase() ?? "";
+  const ammoType =
+    html.querySelector(
+      ".rollcard-subtitle-2-center"
+    )?.textContent?.trim()?.toLowerCase() ?? "";
 
   const isExplosiveAmmo =
     ammoType.includes("explosive");
@@ -89,12 +137,72 @@ Hooks.on("createChatMessage", async (message) => {
     isExplosiveAmmo
   );
 
-  // Module crit conditions:
-  // - Explosive ammo
-  // - OR (CRIT weapon + natural crit)
+  // --------------------------------------------------
+  // RED LACE + MELEE ATTACK DETECTION
+  // --------------------------------------------------
+
+  let redLaceMeleeTrigger = false;
+
+  for (const attackKey in recentAttacks) {
+
+    const attackData =
+      recentAttacks[attackKey];
+
+    if (
+      !attackKey.endsWith(
+        `:${weaponName}`
+      )
+    ) {
+      continue;
+    }
+
+    const age =
+      Date.now() - attackData.timestamp;
+
+    if (age > 60000) {
+      continue;
+    }
+
+    const attacker =
+      game.actors.get(
+        attackData.actorId
+      );
+
+    if (!attacker) {
+      continue;
+    }
+
+    const hasRedLace =
+      attacker.effects.some(
+        e =>
+          e.name
+            ?.toLowerCase()
+            .includes("red lace")
+      );
+
+    if (
+      attackData.melee &&
+      hasRedLace
+    ) {
+
+      redLaceMeleeTrigger = true;
+
+      console.log(
+        `${weaponName} triggered by Red Lace melee attack`
+      );
+
+      break;
+    }
+  }
+
+  // --------------------------------------------------
+  // TRIGGER CONDITIONS
+  // --------------------------------------------------
+
   const shouldTrigger =
     isExplosiveAmmo ||
-    (isCritWeapon && naturalCrit);
+    (isCritWeapon && naturalCrit) ||
+    redLaceMeleeTrigger;
 
   if (!shouldTrigger) {
     return;
@@ -102,46 +210,54 @@ Hooks.on("createChatMessage", async (message) => {
 
   async function applyCriticalDamage() {
 
-    const targets = Array.from(game.user.targets);
+    const targets =
+      Array.from(game.user.targets);
 
     if (targets.length !== 1) {
+
       ui.notifications.warn(
         "Target exactly one token."
       );
+
       return;
     }
 
-    const actor = targets[0].actor;
+    const actor =
+      targets[0].actor;
 
     const currentHp =
       actor.system.derivedStats.hp.value;
 
     await actor.update({
       "system.derivedStats.hp.value":
-        Math.max(0, currentHp - 5)
+        Math.max(
+          0,
+          currentHp - 5
+        )
     });
 
     await ChatMessage.create({
       content: `
         <div class="cpr-block">
+
           <div
             class="text-normal text-semi"
-            style="margin-left: 12px;"
+            style="margin-left:12px;"
           >
             Critical Damage
           </div>
 
           <div
             class="text-normal"
-            style="margin-left: 12px;"
+            style="margin-left:12px;"
           >
             ${actor.name} suffers
             <b>5 direct damage</b>.
           </div>
+
         </div>
       `
     });
-
   }
 
   const triggerCount =
@@ -151,7 +267,11 @@ Hooks.on("createChatMessage", async (message) => {
     `${weaponName} triggered ${triggerCount} module critical effect(s)`
   );
 
-  for (let i = 0; i < triggerCount; i++) {
+  for (
+    let i = 0;
+    i < triggerCount;
+    i++
+  ) {
     await applyCriticalDamage();
   }
 
