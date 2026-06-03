@@ -4,124 +4,119 @@ let lastSmartAttack = null;
 
 function rollRedD10() {
 
-const first = Math.ceil(Math.random() * 10);
+  const first = Math.ceil(Math.random() * 10);
 
-if (first === 10) {
-const second = Math.ceil(Math.random() * 10);
-return 10 + second;
-}
+  if (first === 10) {
+    const second = Math.ceil(Math.random() * 10);
+    return 10 + second;
+  }
 
-if (first === 1) {
-const second = Math.ceil(Math.random() * 10);
-return 1 - second;
-}
+  if (first === 1) {
+    const second = Math.ceil(Math.random() * 10);
+    return 1 - second;
+  }
 
-return first;
+  return first;
 }
 
 Hooks.on("createChatMessage", async (message) => {
 
-if (!message?.content) return;
+  if (!message?.content) return;
 
-const html = document.createElement("div");
-html.innerHTML = message.content;
+  const html = document.createElement("div");
+  html.innerHTML = message.content;
 
-//
-// STORE SMART AMMO ATTACKS
-//
-const attackCard =
-html.querySelector(".d10-rollcard-data");
+  //
+  // STORE SMART AMMO ATTACKS
+  //
+  const attackCard =
+    html.querySelector(".d10-rollcard-data");
 
-const weaponName =
-html.querySelector(
-".chat-rollTitle-stat .text-center"
-)?.textContent?.trim();
-
-const ammoType =
-html.querySelector(
-".rollcard-subtitle-2-center"
-)?.textContent?.trim()?.toLowerCase() ?? "";
-
-if (
-attackCard &&
-weaponName &&
-ammoType.includes("smart")
-) {
-
-const attackTotal =
-  Number(
+  const weaponName =
     html.querySelector(
-      ".d10-number-div"
-    )?.textContent?.trim()
-  );
+      ".chat-rollTitle-stat .text-center"
+    )?.textContent?.trim();
 
-lastSmartAttack = {
-  weaponName,
-  attackTotal,
-  triggered: false,
-  timestamp: Date.now()
-};
+  const ammoType =
+    html.querySelector(
+      ".rollcard-subtitle-2-center"
+    )?.textContent?.trim()?.toLowerCase() ?? "";
 
-console.log(
-  "Stored Smart Ammo attack:",
-  lastSmartAttack
-);
+  if (
+    attackCard &&
+    weaponName &&
+    ammoType.includes("smart")
+  ) {
 
-return;
+    const attackTotal =
+      Number(
+        html.querySelector(
+          ".d10-number-div"
+        )?.textContent?.trim()
+      );
 
-}
+    lastSmartAttack = {
+      weaponName,
+      attackTotal,
+      triggered: false,
+      timestamp: Date.now()
+    };
 
-//
-// DETECT MISS CARD
-//
-const text =
-html.textContent ?? "";
+    console.log(
+      "Stored Smart Ammo attack:",
+      lastSmartAttack
+    );
 
-const missMatch =
-text.match(/missed.*?by\s+(\d+)/i);
+    return;
+  }
 
-if (
-missMatch &&
-lastSmartAttack &&
-!lastSmartAttack.triggered
-) {
+  //
+  // DETECT MISS CARD
+  //
+  const text =
+    html.textContent ?? "";
 
-const missBy =
-  Number(missMatch[1]);
+  const missMatch =
+    text.match(/missed.*?by\s+(\d+)/i);
 
-console.log(
-  "Smart Ammo miss detected:",
-  missBy
-);
+  if (
+    missMatch &&
+    lastSmartAttack &&
+    !lastSmartAttack.triggered
+  ) {
 
-if (missBy > 4) return;
+    const missBy =
+      Number(missMatch[1]);
 
-lastSmartAttack.triggered = true;
+    console.log(
+      "Smart Ammo miss detected:",
+      missBy
+    );
 
-const die =
-  rollRedD10();
+    // Smart Ammo only triggers on misses by 4 or less
+    if (missBy > 4) return;
 
-const total =
-  die + 10;
+    lastSmartAttack.triggered = true;
 
-const success =
-  total >= missBy;
+    const die =
+      rollRedD10();
 
-const margin =
-  total - missBy;
+    const total =
+      die + 14;
 
-const imageNumber =
-  Math.min(
-    10,
-    Math.max(
-      1,
-      Math.abs(die)
-    )
-  );
+    const imageNumber =
+      Math.min(
+        10,
+        Math.max(
+          1,
+          Math.abs(die)
+        )
+      );
 
-await ChatMessage.create({
+    await ChatMessage.create({
 
-  content: `
+      content: `
+
 <div class="cpr-block chat-rollTitle-stat">
 
   <div class="text-center text-padding-top text-normal text-semi">
@@ -141,6 +136,7 @@ await ChatMessage.create({
   </div>
 
 </div>
+
 <div class="cpr-block">
 
   <div class="d10-rollcard-data">
@@ -168,7 +164,7 @@ await ChatMessage.create({
 
       <div class="text-normal text-semi">
 
-        Smart Ammo Bonus +10
+        Smart Ammo Bonus +14
 
       </div>
 
@@ -178,11 +174,15 @@ await ChatMessage.create({
 
 </div>
 
-console.log(
-  "Smart Ammo correction roll:",
-  total
-);
+`
 
-}
+    });
+
+    console.log(
+      "Smart Ammo correction roll:",
+      total
+    );
+
+  }
 
 });
