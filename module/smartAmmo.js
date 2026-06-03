@@ -48,7 +48,6 @@ weaponName &&
 ammoType.includes("smart")
 ) {
 
-```
 const attackTotal =
   Number(
     html.querySelector(
@@ -69,7 +68,6 @@ console.log(
 );
 
 return;
-```
 
 }
 
@@ -88,7 +86,6 @@ lastSmartAttack &&
 !lastSmartAttack.triggered
 ) {
 
-```
 const missBy =
   Number(missMatch[1]);
 
@@ -97,18 +94,15 @@ console.log(
   missBy
 );
 
-// Improved Smart Ammo behavior:
-// can correct misses by up to 5
-if (missBy > 5) return;
+if (missBy > 4) return;
 
 lastSmartAttack.triggered = true;
 
 const die =
   rollRedD10();
 
-// Improved Smart Ammo bonus
 const total =
-  die + 14;
+  die + 10;
 
 const success =
   total >= missBy;
@@ -128,13 +122,6 @@ const imageNumber =
 await ChatMessage.create({
 
   content: `
-```
-
-<div class="rollcard">
-
-  <div class="rollcard-top">
-
-```
 <div class="cpr-block chat-rollTitle-stat">
 
   <div class="text-center text-padding-top text-normal text-semi">
@@ -154,13 +141,6 @@ await ChatMessage.create({
   </div>
 
 </div>
-```
-
-  </div>
-
-  <div class="rollcard-bottom">
-
-```
 <div class="cpr-block">
 
   <div class="d10-rollcard-data">
@@ -188,7 +168,7 @@ await ChatMessage.create({
 
       <div class="text-normal text-semi">
 
-        Smart Ammo Bonus +14
+        Smart Ammo Bonus +10
 
       </div>
 
@@ -197,48 +177,20 @@ await ChatMessage.create({
   </div>
 
 </div>
-```
-
-  </div>
-
-</div>
-
-<div
-  class="cpr-block"
-  style="
-    padding:10px;
-    background-color:${
-      success
-        ? "var(--cpr-text-chat-success,#0a650a)"
-        : "var(--cpr-text-chat-failure,#b90202)"
-    };
-  "
->
-
-  <b>
-
-```
 ${
   success
     ? `<span class="fg-green">HIT</span> by ${margin}!`
     : `<span class="fg-red">MISSED</span> by ${Math.abs(margin)}!`
 }
-```
-
-  </b>
-
-</div>
 
 `
 
-```
 });
 
 console.log(
   "Smart Ammo correction roll:",
   total
 );
-```
 
 }
 
