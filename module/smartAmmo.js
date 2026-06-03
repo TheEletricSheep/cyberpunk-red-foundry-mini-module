@@ -4,140 +4,188 @@ let lastSmartAttack = null;
 
 function rollRedD10() {
 
-  const first = Math.ceil(Math.random() * 10);
+const first = Math.ceil(Math.random() * 10);
 
-  if (first === 10) {
-    const second = Math.ceil(Math.random() * 10);
-    return 10 + second;
-  }
+if (first === 10) {
+const second = Math.ceil(Math.random() * 10);
+return 10 + second;
+}
 
-  if (first === 1) {
-    const second = Math.ceil(Math.random() * 10);
-    return 1 - second;
-  }
+if (first === 1) {
+const second = Math.ceil(Math.random() * 10);
+return 1 - second;
+}
 
-  return first;
+return first;
 }
 
 Hooks.on("createChatMessage", async (message) => {
 
-  if (!message?.content) return;
+if (!message?.content) return;
 
-  const html = document.createElement("div");
-  html.innerHTML = message.content;
+const html = document.createElement("div");
+html.innerHTML = message.content;
 
-  //
-  // STORE SMART ATTACKS
-  //
-  const attackCard =
-    html.querySelector(".d10-rollcard-data");
+//
+// STORE SMART AMMO ATTACKS
+//
+const attackCard =
+html.querySelector(".d10-rollcard-data");
 
-  const weaponName =
+const weaponName =
+html.querySelector(
+".chat-rollTitle-stat .text-center"
+)?.textContent?.trim();
+
+const ammoType =
+html.querySelector(
+".rollcard-subtitle-2-center"
+)?.textContent?.trim()?.toLowerCase() ?? "";
+
+if (
+attackCard &&
+weaponName &&
+ammoType.includes("smart")
+) {
+
+```
+const attackTotal =
+  Number(
     html.querySelector(
-      ".chat-rollTitle-stat .text-center"
-    )?.textContent?.trim();
+      ".d10-number-div"
+    )?.textContent?.trim()
+  );
 
-  const ammoType =
-    html.querySelector(
-      ".rollcard-subtitle-2-center"
-    )?.textContent?.trim()?.toLowerCase() ?? "";
+lastSmartAttack = {
+  weaponName,
+  attackTotal,
+  triggered: false,
+  timestamp: Date.now()
+};
 
-  if (
-    attackCard &&
-    weaponName &&
-    ammoType.includes("smart")
-  ) {
+console.log(
+  "Stored Smart Ammo attack:",
+  lastSmartAttack
+);
 
-    const attackTotal =
-      Number(
-        html.querySelector(
-          ".d10-number-div"
-        )?.textContent?.trim()
-      );
+return;
+```
 
-    lastSmartAttack = {
-      weaponName,
-      attackTotal,
-      triggered: false,
-      timestamp: Date.now()
-    };
+}
 
-    console.log(
-      "Stored Smart Ammo attack:",
-      lastSmartAttack
-    );
+//
+// DETECT MISS CARD
+//
+const text =
+html.textContent ?? "";
 
-    return;
-  }
+const missMatch =
+text.match(/missed.*?by\s+(\d+)/i);
 
-  //
-  // DETECT MISS CARD
-  //
-  const text =
-    html.textContent ?? "";
+if (
+missMatch &&
+lastSmartAttack &&
+!lastSmartAttack.triggered
+) {
 
-  const missMatch =
-    text.match(/missed.*?by\s+(\d+)/i);
+```
+const missBy =
+  Number(missMatch[1]);
 
-  if (
-    missMatch &&
-    lastSmartAttack &&
-    !lastSmartAttack.triggered
-  ) {
+console.log(
+  "Smart Ammo miss detected:",
+  missBy
+);
 
-    const missBy =
-      Number(missMatch[1]);
+if (missBy > 4) return;
 
-    console.log(
-      "Smart Ammo miss detected:",
-      missBy
-    );
+lastSmartAttack.triggered = true;
 
-    if (missBy > 4) return;
+const die =
+  rollRedD10();
 
-    lastSmartAttack.triggered = true;
+const total =
+  die + 10;
 
-    const die =
-      rollRedD10();
+const success =
+  total >= missBy;
 
-    const total =
-      die + 10;
+const margin =
+  total - missBy;
 
-    const success =
-      total >= missBy;
+const imageNumber =
+  Math.min(
+    10,
+    Math.max(
+      1,
+      Math.abs(die)
+    )
+  );
 
-    const imageNumber =
-      Math.min(
-        10,
-        Math.max(
-          1,
-          Math.abs(die)
-        )
-      );
+await ChatMessage.create({
 
-    await ChatMessage.create({
-
-      content: `
+  content: `
+```
 
 <div class="rollcard">
 
   <div class="rollcard-top">
 
-    <div class="cpr-block chat-rollTitle-stat">
+```
+<div class="cpr-block chat-rollTitle-stat">
 
-      <div class="text-center text-padding-top text-normal text-semi">
+  <div class="text-center text-padding-top text-normal text-semi">
 
-        ${lastSmartAttack.weaponName}
+    ${lastSmartAttack.weaponName}
 
-      </div>
+  </div>
 
-      <div class="rollcard-subtitle">
+  <div class="rollcard-subtitle">
 
-        <div class="rollcard-subtitle-center text-small">
+    <div class="rollcard-subtitle-center text-small">
 
-          Smart Ammo Correction
+      Smart Ammo Correction
 
-        </div>
+    </div>
+
+  </div>
+
+</div>
+```
+
+  </div>
+
+  <div class="rollcard-bottom">
+
+```
+<div class="cpr-block">
+
+  <div class="d10-rollcard-data">
+
+    <div class="d10-dice-div">
+
+      <img
+        class="d10"
+        src="systems/cyberpunk-red-core/icons/dice/red/d10_${imageNumber}.svg"
+      />
+
+    </div>
+
+    <div class="d10-number-div">
+
+      <span class="text-semi">
+
+        ${total}
+
+      </span>
+
+    </div>
+
+    <div class="d10-data-div">
+
+      <div class="text-normal text-semi">
+
+        Smart Ammo Bonus +10
 
       </div>
 
@@ -145,44 +193,8 @@ Hooks.on("createChatMessage", async (message) => {
 
   </div>
 
-  <div class="rollcard-bottom">
-
-    <div class="cpr-block">
-
-      <div class="d10-rollcard-data">
-
-        <div class="d10-dice-div">
-
-          <img
-            class="d10"
-            src="systems/cyberpunk-red-core/icons/dice/red/d10_${imageNumber}.svg"
-          />
-
-        </div>
-
-        <div class="d10-number-div">
-
-          <span class="text-semi">
-
-            ${total}
-
-          </span>
-
-        </div>
-
-        <div class="d10-data-div">
-
-          <div class="text-normal text-semi">
-
-            Smart Ammo Bonus +10
-
-          </div>
-
-        </div>
-
-      </div>
-
-    </div>
+</div>
+```
 
   </div>
 
@@ -194,45 +206,37 @@ Hooks.on("createChatMessage", async (message) => {
     padding:10px;
     background-color:${
       success
-        ? "#0a650a"
-        : "#b90202"
+        ? "var(--cpr-text-chat-success,#0a650a)"
+        : "var(--cpr-text-chat-failure,#b90202)"
     };
   "
 >
 
   <b>
 
-    ${
-      success
-        ? "Smart Ammo corrected the shot!"
-        : "Smart Ammo failed to correct the shot."
-    }
+```
+${
+  success
+    ? `<span class="fg-green">HIT</span> by ${margin}!`
+    : `<span class="fg-red">MISSED</span> by ${Math.abs(margin)}!`
+}
+```
 
   </b>
-
-  <br>
-
-  Missed by ${missBy}
-
-  <br>
-
-  Smart Roll: ${die}
-
-  <br>
-
-  Final Result: ${total}
 
 </div>
 
 `
 
-    });
+```
+});
 
-    console.log(
-      "Smart Ammo correction roll:",
-      total
-    );
+console.log(
+  "Smart Ammo correction roll:",
+  total
+);
+```
 
-  }
+}
 
 });
