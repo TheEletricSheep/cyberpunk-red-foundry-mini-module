@@ -177,15 +177,6 @@ await ChatMessage.create({
   </div>
 
 </div>
-${
-  success
-    ? `<span class="fg-green">HIT</span> by ${margin}!`
-    : `<span class="fg-red">MISSED</span> by ${Math.abs(margin)}!`
-}
-
-`
-
-});
 
 console.log(
   "Smart Ammo correction roll:",
