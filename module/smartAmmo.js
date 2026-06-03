@@ -97,15 +97,18 @@ console.log(
   missBy
 );
 
-if (missBy > 4) return;
+// Improved Smart Ammo behavior:
+// can correct misses by up to 5
+if (missBy > 5) return;
 
 lastSmartAttack.triggered = true;
 
 const die =
   rollRedD10();
 
+// Improved Smart Ammo bonus
 const total =
-  die + 10;
+  die + 14;
 
 const success =
   total >= missBy;
@@ -185,7 +188,7 @@ await ChatMessage.create({
 
       <div class="text-normal text-semi">
 
-        Smart Ammo Bonus +10
+        Smart Ammo Bonus +14
 
       </div>
 
