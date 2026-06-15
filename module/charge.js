@@ -17,12 +17,15 @@ Hooks.on("renderChatMessage", (message, html) => {
     let currentAmmo =
       weapon.system.magazine?.value ?? 0;
 
-    // CPR already spent the base shot
+    // Read maximum charge from weapon name
+    // Example: Heavy Pistol (Charge 4)
     const maxChargesFromName =
       parseInt(
         weapon.name.match(/\(Charge (\d+)\)/)?.[1] || 0
       );
 
+    // CPR already spent the base shot
+    // Remaining ammo determines extra charge levels available
     const maxCharges =
       Math.min(
         currentAmmo,
@@ -45,7 +48,12 @@ Hooks.on("renderChatMessage", (message, html) => {
       title: weapon.name,
       content: `
         <p>Select charge level:</p>
-        <div style="display:flex;flex-wrap:wrap;gap:5px;">
+
+        <div style="
+          display:flex;
+          flex-wrap:wrap;
+          gap:5px;
+        ">
           ${buttons}
         </div>
       `,
@@ -60,13 +68,7 @@ Hooks.on("renderChatMessage", (message, html) => {
                 ev.currentTarget.dataset.charge
               );
 
-            // 1d6 base + charge d6
-            const roll =
-              await new Roll(
-                `1d6 + ${chargesUsed}d6`
-              ).evaluate({ async: true });
-
-            // Spend extra ammo only
+            // Spend only extra ammo
             const extraAmmo = chargesUsed;
 
             await weapon.update({
@@ -77,8 +79,14 @@ Hooks.on("renderChatMessage", (message, html) => {
                 )
             });
 
+            // Charge 0 = 1d6
+            // Charge 1 = 2d6
+            // Charge 4 = 5d6
+            const totalDice =
+              chargesUsed + 1;
+
             await ui.chat.processMessage(
-              `/red 0d6+${roll.total} # ${weapon.name}`
+              `/red ${totalDice}d6 # ${weapon.name} (Charge ${chargesUsed})`
             );
 
             dialog.close();
@@ -159,6 +167,7 @@ Hooks.on("createChatMessage", async (message) => {
         <h3>${weaponName}</h3>
 
         <div style="display:flex;gap:5px;">
+
           <button
             class="charge-hit"
             data-weapon-id="${itemId}"
@@ -166,9 +175,11 @@ Hooks.on("createChatMessage", async (message) => {
             FIRE
           </button>
 
-          <button class="charge-miss">
+          <button
+            class="charge-miss">
             CANCEL
           </button>
+
         </div>
       </div>
     `
