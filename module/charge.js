@@ -2,92 +2,89 @@ Hooks.on("renderChatMessage", (message, html) => {
 
   html.find(".charge-hit").click(async (event) => {
 
-    const weaponName =
-      event.currentTarget.dataset.weapon;
+    const weaponId =
+      event.currentTarget.dataset.weaponId;
 
-    const itemId =
-      event.currentTarget.dataset.itemId;
+    const actorId =
+      event.currentTarget.dataset.actorId;
 
-    const actor =
-      game.actors.get(
-        event.currentTarget.dataset.actorId
+    const actor = game.actors.get(actorId);
+    if (!actor) return;
+
+    const weapon = actor.items.get(weaponId);
+    if (!weapon) return;
+
+    let currentAmmo =
+      weapon.system.magazine?.value ?? 0;
+
+    // CPR already spent the base shot
+    const maxChargesFromName =
+      parseInt(
+        weapon.name.match(/\(Charge (\d+)\)/)?.[1] || 0
       );
-
-    const item =
-      actor?.items?.get(itemId);
-
-    if (!actor || !item) {
-      ui.notifications.warn(
-        "Weapon not found."
-      );
-      return;
-    }
-
-    const currentAmmo =
-      item.system.magazine.value;
-
-    let buttons = {};
 
     const maxCharges =
       Math.min(
         currentAmmo,
-        parseInt(
-          weaponName.match(/\(Charge (\d+)\)/)?.[1] || 1
-        )
+        maxChargesFromName
       );
 
-    for (let i = 1; i <= maxCharges; i++) {
+    let buttons = "";
 
-      buttons[`charge${i}`] = {
+    for (let i = 0; i <= maxCharges; i++) {
 
-        label: `Charge ${i}`,
-
-        callback: async () => {
-
-          const chargesUsed = i;
-
-          const roll =
-            await new Roll(
-              `1d6 + ${chargesUsed}d6`
-            ).evaluate({ async: true });
-
-          await ui.chat.processMessage(
-            `/red 0d6+${roll.total} # ${weaponName} (Charge ${chargesUsed})`
-          );
-
-          // CPR already spent 1 ammo
-          const extraAmmo =
-            Math.max(0, chargesUsed - 1);
-
-          if (currentAmmo < extraAmmo) {
-
-            ui.notifications.warn(
-              "Not enough ammo."
-            );
-
-            return;
-          }
-
-          const newAmmo =
-            Math.max(
-              0,
-              currentAmmo - extraAmmo
-            );
-
-          await item.update({
-            "system.magazine.value":
-              newAmmo
-          });
-
-        }
-      };
+      buttons += `
+        <button class="charge-select"
+                data-charge="${i}">
+          Charge ${i}
+        </button>
+      `;
     }
 
     new Dialog({
-      title: weaponName,
-      content:
-        "<p>Select charge level:</p>",
-      buttons
+      title: weapon.name,
+      content: `
+        <p>Select charge level:</p>
+        <div style="display:flex;flex-wrap:wrap;gap:5px;">
+          ${buttons}
+        </div>
+      `,
+      buttons: {},
+      render: (dialogHtml) => {
+
+        dialogHtml.find(".charge-select").click(
+          async ev => {
+
+            const chargesUsed =
+              parseInt(
+                ev.currentTarget.dataset.charge
+              );
+
+            // 1d6 base + charge d6
+            const roll =
+              await new Roll(
+                `1d6 + ${chargesUsed}d6`
+              ).evaluate({ async: true });
+
+            // Spend extra ammo only
+            const extraAmmo = chargesUsed;
+
+            await weapon.update({
+              "system.magazine.value":
+                Math.max(
+                  0,
+                  currentAmmo - extraAmmo
+                )
+            });
+
+            await ui.chat.processMessage(
+              `/red 0d6+${roll.total} # ${weapon.name}`
+            );
+
+            dialog.close();
+          }
+        );
+      }
     }).render(true);
 
     event.currentTarget.disabled = true;
@@ -116,7 +113,12 @@ Hooks.on("renderChatMessage", (message, html) => {
 
 });
 
+
 Hooks.on("createChatMessage", async (message) => {
+
+  if (
+    game.user.id !== message.author?.id
+  ) return;
 
   const html = message.content;
 
@@ -137,47 +139,37 @@ Hooks.on("createChatMessage", async (message) => {
 
   if (!weaponName.includes("(Charge")) return;
 
-  const token =
-    canvas.tokens.controlled[0];
-
-  const actor =
-    token?.actor;
-
-  if (!actor) return;
-
-  const item =
-    actor.items.find(
-      i => i.name === weaponName
+  const rollButton =
+    parser.querySelector(
+      "[data-action='rollDamage']"
     );
 
-  if (!item) return;
+  if (!rollButton) return;
+
+  const actorId =
+    rollButton.dataset.actorId;
+
+  const itemId =
+    rollButton.dataset.itemId;
 
   await ChatMessage.create({
-
-    speaker:
-      ChatMessage.getSpeaker(),
-
+    speaker: ChatMessage.getSpeaker(),
     content: `
       <div class="charge-card">
-
         <h3>${weaponName}</h3>
 
         <div style="display:flex;gap:5px;">
-
           <button
             class="charge-hit"
-            data-weapon="${weaponName}"
-            data-item-id="${item.id}"
-            data-actor-id="${actor.id}">
+            data-weapon-id="${itemId}"
+            data-actor-id="${actorId}">
             FIRE
           </button>
 
           <button class="charge-miss">
             CANCEL
           </button>
-
         </div>
-
       </div>
     `
   });
