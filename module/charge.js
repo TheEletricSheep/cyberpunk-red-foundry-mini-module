@@ -17,15 +17,13 @@ Hooks.on("renderChatMessage", (message, html) => {
     let currentAmmo =
       weapon.system.magazine?.value ?? 0;
 
-    // Read maximum charge from weapon name
-    // Example: Heavy Pistol (Charge 4)
+    // Example weapon name:
+    // Heavy Pistol (Charge 4)
     const maxChargesFromName =
       parseInt(
         weapon.name.match(/\(Charge (\d+)\)/)?.[1] || 0
       );
 
-    // CPR already spent the base shot
-    // Remaining ammo determines extra charge levels available
     const maxCharges =
       Math.min(
         currentAmmo,
@@ -68,8 +66,9 @@ Hooks.on("renderChatMessage", (message, html) => {
                 ev.currentTarget.dataset.charge
               );
 
-            // Spend only extra ammo
-            const extraAmmo = chargesUsed;
+            // Spend extra ammo only
+            const extraAmmo =
+              chargesUsed;
 
             await weapon.update({
               "system.magazine.value":
@@ -89,7 +88,17 @@ Hooks.on("renderChatMessage", (message, html) => {
               `/red ${totalDice}d6 # ${weapon.name} (Charge ${chargesUsed})`
             );
 
-            dialog.close();
+            // Close charge dialog
+            const dlg =
+              ev.currentTarget.closest(".app");
+
+            if (dlg) {
+              const app =
+                Object.values(ui.windows)
+                  .find(w => w.element?.[0] === dlg);
+
+              app?.close();
+            }
           }
         );
       }
@@ -164,6 +173,7 @@ Hooks.on("createChatMessage", async (message) => {
     speaker: ChatMessage.getSpeaker(),
     content: `
       <div class="charge-card">
+
         <h3>${weaponName}</h3>
 
         <div style="display:flex;gap:5px;">
@@ -181,6 +191,7 @@ Hooks.on("createChatMessage", async (message) => {
           </button>
 
         </div>
+
       </div>
     `
   });
