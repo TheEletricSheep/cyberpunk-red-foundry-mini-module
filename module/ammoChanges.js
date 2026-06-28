@@ -1,5 +1,5 @@
 Hooks.once("ready", () => {
-  console.info("🎯 Custom CPR Weapons Script Loaded (Charge, False Autofire, Autosear)");
+  console.info("🎯 Custom CPR Weapons Script Loaded (Charge, False Autofire, Autosear, Shotgun ACG)");
 });
 
 // ==========================================
@@ -190,6 +190,8 @@ Hooks.on("createChatMessage", async (message) => {
     if (!rollDamageBtn) return;
 
     const weaponName = parser.querySelector(".text-center")?.textContent?.trim() || "";
+    const lowerWeaponName = weaponName.toLowerCase();
+    
     const actorId = rollDamageBtn.dataset.actorId;
     const itemId = rollDamageBtn.dataset.itemId;
     const actor = game.actors.get(actorId);
@@ -229,8 +231,14 @@ Hooks.on("createChatMessage", async (message) => {
         return;
     }
 
-    // --- 3. EFFICIENT AUTOSEAR INTERCEPT ---
-    if (weaponName.toLowerCase().includes("efficient autosear")) {
+    // --- 3. AUTOFIRE UPGRADES INTERCEPT (Autosear & Shotgun ACG) ---
+    const isAutosear = lowerWeaponName.includes("efficient autosear");
+    const isShotgunACG = lowerWeaponName.includes("shotgun automatic control group");
+
+    if (isAutosear || isShotgunACG) {
+        const upgradeKeyword = isAutosear ? "efficient autosear" : "shotgun automatic control group";
+        const upgradeLabel = isAutosear ? "Autosear" : "Automatic Control Group";
+
         const firedWeapon = actor.items.get(itemId);
         if (!firedWeapon) return;
 
@@ -238,14 +246,14 @@ Hooks.on("createChatMessage", async (message) => {
         const match = firedWeapon.name.match(/\d+/);
         let ammoCost = match ? parseInt(match[0]) : 1; 
 
-        // Find Main Weapon
+        // Find Main Weapon (must have the specific upgrade installed)
         const allOtherWeapons = actor.items.filter(i => i.type === "weapon" && i.id !== firedWeapon.id && i.system.isRanged);
         let mainWeapon = null;
         for (const w of allOtherWeapons) {
             const upgradeIds = w.system.installedItems?.list || [];
             const hasTheUpgrade = upgradeIds.some(id => {
                 const upg = actor.items.get(id);
-                return upg && upg.name.toLowerCase().includes("efficient autosear");
+                return upg && upg.name.toLowerCase().includes(upgradeKeyword);
             });
             if (hasTheUpgrade) {
                 mainWeapon = w;
@@ -254,7 +262,7 @@ Hooks.on("createChatMessage", async (message) => {
         }
 
         if (!mainWeapon) {
-            ui.notifications.warn("Could not find a main weapon with the Efficient Autosear upgrade installed!");
+            ui.notifications.warn(`Could not find a main weapon with the ${upgradeLabel} upgrade installed!`);
             return;
         }
 
@@ -277,16 +285,16 @@ Hooks.on("createChatMessage", async (message) => {
             }
         }
 
-        // Pop Autosear Dialog
+        // Pop Dialog
         new Dialog({
-            title: `Autosear Damage - ${mainWeapon.name}`,
+            title: `${upgradeLabel} Damage - ${mainWeapon.name}`,
             content: `
               <div style="margin-bottom: 10px;">
                 <p>Did the attack hit? If so, by how much did you beat the DV?</p>
               </div>
               <div class="form-group" style="display: flex; align-items: center; margin-bottom: 15px;">
                 <label style="flex: 1; font-weight: bold;">Multiplier (Amount beat DV by):</label>
-                <input id="autosear-multiplier" type="number" value="1" min="1" max="5" style="width: 60px; text-align: center;"/>
+                <input id="autofire-upgrade-multiplier" type="number" value="1" min="1" max="5" style="width: 60px; text-align: center;"/>
               </div>
             `,
             buttons: {
@@ -294,7 +302,7 @@ Hooks.on("createChatMessage", async (message) => {
                     icon: '<i class="fas fa-crosshairs"></i>',
                     label: "Hit! Roll Damage",
                     callback: async (dialogHtml) => {
-                        let mult = parseInt(dialogHtml.find('#autosear-multiplier').val());
+                        let mult = parseInt(dialogHtml.find('#autofire-upgrade-multiplier').val());
                         if (isNaN(mult) || mult < 1) mult = 1;
                         
                         // Roll 2d6
@@ -317,7 +325,7 @@ Hooks.on("createChatMessage", async (message) => {
                               <div class="rollcard-top">
                                 <div class="cpr-block chat-rollTitle-stat">
                                   <div class="text-center text-padding-top text-normal text-semi">
-                                    Autosear Damage (${mainWeapon.name})
+                                    ${upgradeLabel} Damage (${mainWeapon.name})
                                   </div>
                                   <div class="rollcard-subtitle">
                                     <div class="rollcard-subtitle-center text-small">Damage</div>
@@ -364,7 +372,7 @@ Hooks.on("createChatMessage", async (message) => {
                     icon: '<i class="fas fa-times"></i>',
                     label: "Missed",
                     callback: () => {
-                        ui.notifications.info(`Autosear attack missed. ${ammoCost} rounds were spent from ${mainWeapon.name}.`);
+                        ui.notifications.info(`${upgradeLabel} attack missed. ${ammoCost} rounds were spent from ${mainWeapon.name}.`);
                     }
                 }
             },
