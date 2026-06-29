@@ -1,6 +1,4 @@
-Hooks.once("ready", () => {
-  console.info("🎯 Custom CPR Weapons Script Loaded (Charge, False Autofire, Autosear, Shotgun ACG)");
-});
+console.info("🎯 Custom CPR Weapons Script Loaded (Charge, False Autofire, Autosear, Shotgun ACG)");
 
 // ==========================================
 // HOOK 1: RENDER CHAT MESSAGE 
@@ -106,7 +104,6 @@ Hooks.on("renderChatMessage", (message, html) => {
                     const rollTotal = roll.total;
                     const finalDamage = rollTotal * multiplier;
 
-                    // Generate native Cyberpunk Red dice images
                     const diceImages = roll.terms[0].results.map(d => {
                         return `<img class="d6 d6-60" src="systems/cyberpunk-red-core/icons/dice/black/d6_${d.result}.svg" />`;
                     }).join("");
@@ -180,7 +177,6 @@ Hooks.on("createChatMessage", async (message) => {
     const html = message.content;
     if (!html) return;
 
-    // We only care if the message contains a damage button
     if (!html.includes("rollDamage")) return;
 
     const parser = document.createElement("div");
@@ -238,15 +234,13 @@ Hooks.on("createChatMessage", async (message) => {
     if (isAutosear || isShotgunACG) {
         const upgradeKeyword = isAutosear ? "efficient autosear" : "shotgun automatic control group";
         const upgradeLabel = isAutosear ? "Autosear" : "Automatic Control Group";
+        
+        // DYNAMIC AMMO COST
+        const ammoCost = isAutosear ? 6 : 4; 
 
         const firedWeapon = actor.items.get(itemId);
         if (!firedWeapon) return;
 
-        // Get ammo cost from dummy weapon name
-        const match = firedWeapon.name.match(/\d+/);
-        let ammoCost = match ? parseInt(match[0]) : 1; 
-
-        // Find Main Weapon (must have the specific upgrade installed)
         const allOtherWeapons = actor.items.filter(i => i.type === "weapon" && i.id !== firedWeapon.id && i.system.isRanged);
         let mainWeapon = null;
         for (const w of allOtherWeapons) {
@@ -266,7 +260,6 @@ Hooks.on("createChatMessage", async (message) => {
             return;
         }
 
-        // Deduct ammo
         if (mainWeapon.system.magazine && typeof mainWeapon.system.magazine.value === "number") {
             let currentAmmo = mainWeapon.system.magazine.value;
             if (currentAmmo < ammoCost) {
@@ -274,7 +267,7 @@ Hooks.on("createChatMessage", async (message) => {
                 ChatMessage.create({
                     user: game.userId,
                     speaker: ChatMessage.getSpeaker(),
-                    content: `<p><i><strong>*CLICK*</strong></i> Tried to autofire, but the <strong>${mainWeapon.name}</strong> didn't have enough ammo!</p>`,
+                    content: `<p><i><strong>*CLICK*</strong></i> Tried to autofire, but the <strong>${mainWeapon.name}</strong> only had ${currentAmmo} bullets (needs ${ammoCost})!</p>`,
                 });
                 return; 
             } else {
@@ -285,7 +278,6 @@ Hooks.on("createChatMessage", async (message) => {
             }
         }
 
-        // Pop Dialog
         new Dialog({
             title: `${upgradeLabel} Damage - ${mainWeapon.name}`,
             content: `
@@ -305,13 +297,11 @@ Hooks.on("createChatMessage", async (message) => {
                         let mult = parseInt(dialogHtml.find('#autofire-upgrade-multiplier').val());
                         if (isNaN(mult) || mult < 1) mult = 1;
                         
-                        // Roll 2d6
                         let roll = new Roll("2d6");
                         await roll.evaluate();
                         let rollTotal = roll.total;
                         let finalDamage = rollTotal * mult;
                         
-                        // Grab actual dice faces for native styling
                         let keptDice = roll.terms[0].results.map(r => r.result);
                         let isCrit = keptDice.filter(d => d === 6).length >= 2;
                         let bonusDamage = isCrit ? 5 : 0; 
@@ -335,7 +325,7 @@ Hooks.on("createChatMessage", async (message) => {
                                       </a>
                                     </div>
                                     <div class="rollcard-subtitle-2-center text-small">
-                                      Multiplier x${mult}
+                                      Multiplier x${mult} (${ammoCost} Ammo Spent)
                                     </div>
                                   </div>
                                 </div>
