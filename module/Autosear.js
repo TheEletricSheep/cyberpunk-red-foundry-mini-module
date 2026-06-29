@@ -1,5 +1,5 @@
 Hooks.once("ready", () => {
-  console.info("🎯 Efficient Autosear Dialog Script Loaded (v20 - No Explosive Option)");
+  console.info("🎯 Efficient Autosear Dialog Script Loaded (v22 - Separated Menus)");
 });
 
 Hooks.on("createChatMessage", async function (message) {
@@ -50,12 +50,20 @@ Hooks.on("createChatMessage", async function (message) {
         <label style="flex: 1; font-weight: bold;">Multiplier:</label>
         <input id="autosear-multiplier" type="number" value="1" min="1" max="5" style="width: 60px; text-align: center;"/>
       </div>
-      <div class="form-group" style="display: flex; align-items: center; margin-bottom: 15px;">
+      <div class="form-group" style="display: flex; align-items: center; margin-bottom: 10px;">
         <label style="flex: 1; font-weight: bold;">Ammo Type:</label>
-        <select id="autosear-ammo" style="width: 120px;">
+        <select id="autosear-ammo" style="width: 140px;">
           <option value="basic">Basic</option>
           <option value="rubber">Rubber</option>
           <option value="armorPiercing">Armor-Piercing</option>
+        </select>
+      </div>
+      <div class="form-group" style="display: flex; align-items: center; margin-bottom: 15px;">
+        <label style="flex: 1; font-weight: bold;">Weapon Type:</label>
+        <select id="autosear-weapon-type" style="width: 140px;">
+          <option value="standard">Standard</option>
+          <option value="tech">Tech (50% Armor Ignore)</option>
+          <option value="power">Power (+10 Crit Dmg)</option>
         </select>
       </div>
     `,
@@ -66,16 +74,22 @@ Hooks.on("createChatMessage", async function (message) {
         callback: async (html) => {
           let mult = parseInt(html.find('#autosear-multiplier').val()) || 1;
           let selectedAmmo = html.find('#autosear-ammo').val();
+          let selectedWeaponType = html.find('#autosear-weapon-type').val();
           
           let roll = await new Roll(`2d6 * ${mult}`).evaluate();
           let keptDice = roll.dice[0].results.map(r => r.result);
           
           let countSixes = keptDice.filter(d => d === 6).length;
           let isCrit = countSixes >= 2;
-          let bonusDamage = isCrit ? 5 : 0;
+          
+          // Logic for Ammo and Weapon Type combinations
+          let ammoDisplay = selectedAmmo === "rubber" ? "Rubber" : selectedAmmo === "armorPiercing" ? "Armor-Piercing" : "Basic";
+          let weaponDisplay = selectedWeaponType === "tech" ? "Tech - " : selectedWeaponType === "power" ? "Power - " : "";
+          let fullDisplayName = weaponDisplay + ammoDisplay;
 
-          let displayAmmoType = selectedAmmo === "rubber" ? "Rubber" : selectedAmmo === "armorPiercing" ? "Armor-Piercing" : "Basic";
           let ablationValue = selectedAmmo === "rubber" ? 0 : selectedAmmo === "armorPiercing" ? 2 : 1;
+          let ignoreArmor = selectedWeaponType === "tech" ? 50 : 0;
+          let bonusDamage = isCrit ? (selectedWeaponType === "power" ? 10 : 5) : 0;
           
           let diceSizeClass = keptDice.length > 5 ? "d6-30" : "d6-60";
           let diceHTML = keptDice.map(d => {
@@ -90,7 +104,7 @@ Hooks.on("createChatMessage", async function (message) {
             speaker: ChatMessage.getSpeaker({ actor: actor }),
             content: `
               <div class="rollcard">
-                <div class="rollcard-top"><div class="cpr-block chat-rollTitle-stat"><div class="text-center text-padding-top text-normal text-semi">Autosear Damage (${mainWeapon.name})</div><div class="rollcard-subtitle"><div class="rollcard-subtitle-center text-small">Damage</div><div class="rollcard-subtitle-right"><a class="clickable" data-action="applyDamage" data-scope="global" data-total-damage="${roll.total}" data-bonus-damage="${bonusDamage}" data-damage-location="body" data-damage-lethal="true" data-ablation="${ablationValue}" data-ammo-variety="${selectedAmmo}" data-ignore-armor-percent="0" data-ignore-below-sp="0"><i class="fas fa-bolt" data-tooltip="Apply damage to selected Token(s)."></i></a></div><div class="rollcard-subtitle-2-center text-small">${displayAmmoType}</div></div></div></div>
+                <div class="rollcard-top"><div class="cpr-block chat-rollTitle-stat"><div class="text-center text-padding-top text-normal text-semi">Autosear Damage (${mainWeapon.name})</div><div class="rollcard-subtitle"><div class="rollcard-subtitle-center text-small">Damage</div><div class="rollcard-subtitle-right"><a class="clickable" data-action="applyDamage" data-scope="global" data-total-damage="${roll.total}" data-bonus-damage="${bonusDamage}" data-damage-location="body" data-damage-lethal="true" data-ablation="${ablationValue}" data-ammo-variety="${selectedAmmo}" data-ignore-armor-percent="${ignoreArmor}" data-ignore-below-sp="0"><i class="fas fa-bolt" data-tooltip="Apply damage to selected Token(s)."></i></a></div><div class="rollcard-subtitle-2-center text-small">${fullDisplayName}</div></div></div></div>
                 <div class="rollcard-bottom"><div class="cpr-block"><div class="d6-rollcard-data"><div class="d6-dice-div">${diceHTML}</div><div class="d6-number-div"><span class="clickable text-semi" data-action="toggleVisibility" data-visible-element="d6-data-details">${roll.total}</span></div><div class="d6-data-div">${bonusDamage > 0 ? `<div class="text-normal text-semi">Critical Damage: ${bonusDamage}</div>` : ""}<div class="d6-data-details hide">Formula: ${roll.formula}<br>Dice: ${keptDice.join(", ")}</div></div></div></div></div>
               </div>`,
             rolls: [roll],
