@@ -20,7 +20,7 @@ Hooks.on("createChatMessage", async function (message) {
   if (!actor || !firedWeapon || !firedWeapon.name.toLowerCase().includes("efficient autosear")) return;
 
   const match = firedWeapon.name.match(/\d+/);
-  let ammoCost = match ? parseInt(match[0]) : 1;
+  let ammoCost = match ? parseInt(match[0]) : 6;
 
   const allOtherWeapons = actor.items.filter(i => i.type === "weapon" && i.id !== firedWeapon.id && i.system.isRanged);
   let mainWeapon = allOtherWeapons.find(w => (w.system.installedItems?.list || []).some(id => actor.items.get(id)?.name.toLowerCase().includes("efficient autosear")));
