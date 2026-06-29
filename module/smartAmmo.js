@@ -94,7 +94,7 @@ Hooks.on("createChatMessage", async (message) => {
     );
 
     // Smart Ammo only triggers on misses by 4 or less
-    if (missBy > 4) return;
+    if (missBy > 5) return;
 
     lastSmartAttack.triggered = true;
 
