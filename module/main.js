@@ -1,5 +1,5 @@
 import "./powerRebuild.js";
-import "./ammoChanges.js";
+import "./Autosear.js";
 import "./newRed.js";
 import "./critWeapons.js ";
 import "./fire.js";
