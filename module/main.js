@@ -5,4 +5,5 @@ import "./critWeapons.js ";
 import "./fire.js";
 import "./smartAmmo.js";
 import "./charge.js";
+import "./Autofireshotgun.js";
 console.log("Cyberpunk Red Mini Module Loaded");
