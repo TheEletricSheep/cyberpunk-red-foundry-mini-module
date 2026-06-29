@@ -1,5 +1,5 @@
 Hooks.once("ready", () => {
-  console.info("🎯 Shotgun Automatic Control Group Dialog Script Loaded (v19 - Critical Fix)");
+  console.info("🎯 Shotgun Automatic Control Group Dialog Script Loaded (v20 - No Explosive Option)");
 });
 
 Hooks.on("createChatMessage", async function (message) {
@@ -56,7 +56,6 @@ Hooks.on("createChatMessage", async function (message) {
           <option value="basic">Basic</option>
           <option value="rubber">Rubber</option>
           <option value="armorPiercing">Armor-Piercing</option>
-          <option value="explosive">Explosive</option>
         </select>
       </div>
     `,
@@ -71,17 +70,15 @@ Hooks.on("createChatMessage", async function (message) {
           let roll = await new Roll(`2d6 * ${mult}`).evaluate();
           let keptDice = roll.dice[0].results.map(r => r.result);
           
-          // CORRECTED CRITICAL LOGIC
           let countSixes = keptDice.filter(d => d === 6).length;
           let isCrit = countSixes >= 2;
           let bonusDamage = isCrit ? 5 : 0;
 
-          let displayAmmoType = selectedAmmo === "rubber" ? "Rubber" : selectedAmmo === "armorPiercing" ? "Armor-Piercing" : selectedAmmo === "explosive" ? "Explosive" : "Basic";
+          let displayAmmoType = selectedAmmo === "rubber" ? "Rubber" : selectedAmmo === "armorPiercing" ? "Armor-Piercing" : "Basic";
           let ablationValue = selectedAmmo === "rubber" ? 0 : selectedAmmo === "armorPiercing" ? 2 : 1;
           
           let diceSizeClass = keptDice.length > 5 ? "d6-30" : "d6-60";
           let diceHTML = keptDice.map(d => {
-            // Only show red dice if it is actually a crit (>= 2 sixes) AND the specific die is a 6
             if (isCrit && d === 6) {
               return `<img class="d6 ${diceSizeClass}" src="systems/cyberpunk-red-core/icons/dice/red/d6_6_preem.svg" />`;
             }
