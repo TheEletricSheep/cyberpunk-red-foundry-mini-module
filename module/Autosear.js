@@ -1,5 +1,5 @@
 Hooks.once("ready", () => {
-  console.info("🎯 Efficient Autosear Dialog Script Loaded (v7 - Custom CPR Card)");
+  console.info("🎯 Efficient Autosear Dialog Script Loaded (v8 - CPR Native Dice Cards)");
 });
 
 Hooks.on("createChatMessage", async function (message) {
@@ -38,7 +38,7 @@ Hooks.on("createChatMessage", async function (message) {
 
   // === 2. Get the ammo cost from the dummy weapon's name ===
   const match = firedWeapon.name.match(/\d+/);
-  let ammoCost = match ? parseInt(match[0]) : 1; 
+  let ammoCost = match ? parseInt(match[0]) : 6; 
 
   // === 3. Find the Main Weapon ===
   const allOtherWeapons = actor.items.filter(
@@ -114,14 +114,14 @@ Hooks.on("createChatMessage", async function (message) {
           // Extract the 2d6 results
           let keptDice = roll.dice[0].results.map(r => r.result);
           
-          // Generate simple HTML elements for the die faces
-          let diceHTML = keptDice.map(d => `<span style="display:inline-block; border:1px solid #777; border-radius:3px; padding: 2px 6px; margin: 0 2px; background: rgba(0,0,0,0.1); font-weight:bold;">${d}</span>`).join("");
+          // Generate simple HTML elements for the die faces using Native CPR Images
+          let diceHTML = keptDice.map(d => `<img class="d6 d6-60" src="systems/cyberpunk-red-core/icons/dice/black/d6_${d}.svg" />`).join("");
           
           // Calculate CPR Critical Injury (if both dice are 6s, add 5 bonus damage)
           let isCrit = keptDice.filter(d => d === 6).length >= 2;
           let bonusDamage = isCrit ? 5 : 0;
 
-          // Build the Custom CPR Chat Card HTML
+          // Build the Custom CPR Chat Card HTML based on the provided template
           let customHTML = `
             <div class="rollcard">
               <div class="rollcard-top">
@@ -134,19 +134,22 @@ Hooks.on("createChatMessage", async function (message) {
                       Damage
                     </div>
                     <div class="rollcard-subtitle-right">
-                      <a class="clickable"
-                         data-action="applyDamage"
-                         data-scope="global"
-                         data-total-damage="${roll.total}"
-                         data-bonus-damage="${bonusDamage}"
-                         data-damage-location="body"
-                         data-damage-lethal="true"
-                         data-ablation="1"
-                         data-ammo-variety=""
-                         data-ignore-armor-percent="0"
+                      <a class="clickable" 
+                         data-action="applyDamage" 
+                         data-scope="global" 
+                         data-total-damage="${roll.total}" 
+                         data-bonus-damage="${bonusDamage}" 
+                         data-damage-location="body" 
+                         data-damage-lethal="true" 
+                         data-ablation="1" 
+                         data-ammo-variety="basic" 
+                         data-ignore-armor-percent="0" 
                          data-ignore-below-sp="0">
                         <i class="fas fa-bolt" data-tooltip="Apply damage to selected Token(s)."></i>
                       </a>
+                    </div>
+                    <div class="rollcard-subtitle-2-center text-small">
+                      Basic
                     </div>
                   </div>
                 </div>
