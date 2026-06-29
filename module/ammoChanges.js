@@ -19,7 +19,7 @@ Hooks.on("renderChatMessage", (message, html) => {
         const weapon = actor.items.get(weaponId);
         if (!weapon) return;
 
-        let currentAmmo = weapon.system.magazine?.value ?? 0;
+        let currentAmmo = Number(weapon.system.magazine?.value) || 0;
         const maxChargesFromName = parseInt(weapon.name.match(/\(Charge (\d+)\)/)?.[1] || 0);
         const maxCharges = Math.min(currentAmmo, maxChargesFromName);
 
@@ -76,7 +76,7 @@ Hooks.on("renderChatMessage", (message, html) => {
         if (!weapon) return;
 
         // Spend 6 bullets
-        let currentAmmo = weapon.system.magazine?.value ?? 0;
+        let currentAmmo = Number(weapon.system.magazine?.value) || 0;
         if (currentAmmo < 6) {
             ui.notifications.warn(`Not enough ammo! ${weapon.name} needs 6 bullets for Autofire.`);
         }
@@ -245,29 +245,40 @@ Hooks.on("createChatMessage", async (message) => {
         // Hardcode the ammo cost based on the upgrade type
         let ammoCost = isAutosear ? 6 : 4; 
 
-        // Find Main Weapon (must have the specific upgrade installed)
-        const allOtherWeapons = actor.items.filter(i => i.type === "weapon" && i.id !== firedWeapon.id && i.system.isRanged);
+        // 1) See if the original fired weapon has the upgrade directly installed
         let mainWeapon = null;
-        for (const w of allOtherWeapons) {
-            const upgradeIds = w.system.installedItems?.list || [];
-            const hasTheUpgrade = upgradeIds.some(id => {
-                const upg = actor.items.get(id);
-                return upg && upg.name.toLowerCase().includes(upgradeKeyword);
-            });
-            if (hasTheUpgrade) {
-                mainWeapon = w;
-                break;
+        const firedUpgrades = firedWeapon.system.installedItems?.list || [];
+        const firedHasUpgrade = firedUpgrades.some(id => {
+            const upg = actor.items.get(id);
+            return upg && upg.name.toLowerCase().includes(upgradeKeyword);
+        });
+
+        if (firedHasUpgrade) {
+            mainWeapon = firedWeapon;
+        } else {
+            // 2) If not, look for a MAIN weapon that has the upgrade (Dummy Weapon workflow)
+            const allOtherWeapons = actor.items.filter(i => i.type === "weapon" && i.id !== firedWeapon.id && i.system.isRanged);
+            for (const w of allOtherWeapons) {
+                const upgradeIds = w.system.installedItems?.list || [];
+                const hasTheUpgrade = upgradeIds.some(id => {
+                    const upg = actor.items.get(id);
+                    return upg && upg.name.toLowerCase().includes(upgradeKeyword);
+                });
+                if (hasTheUpgrade) {
+                    mainWeapon = w;
+                    break;
+                }
             }
         }
 
         if (!mainWeapon) {
-            ui.notifications.warn(`Could not find a main weapon with the ${upgradeLabel} upgrade installed!`);
+            ui.notifications.warn(`Could not find a weapon with the ${upgradeLabel} upgrade installed!`);
             return;
         }
 
-        // Deduct ammo
-        if (mainWeapon.system.magazine && typeof mainWeapon.system.magazine.value === "number") {
-            let currentAmmo = mainWeapon.system.magazine.value;
+        // Deduct ammo safely using Number() parsing
+        if (mainWeapon.system.magazine !== undefined) {
+            let currentAmmo = Number(mainWeapon.system.magazine.value) || 0;
             if (currentAmmo < ammoCost) {
                 await mainWeapon.update({ "system.magazine.value": 0 });
                 ChatMessage.create({
@@ -278,7 +289,8 @@ Hooks.on("createChatMessage", async (message) => {
                 return; 
             } else {
                 await mainWeapon.update({ "system.magazine.value": currentAmmo - ammoCost });
-                if (firedWeapon.system.magazine && firedWeapon.system.magazine.max) {
+                // Only "replenish" if they were using a dummy weapon to prevent double-spending
+                if (mainWeapon.id !== firedWeapon.id && firedWeapon.system.magazine && firedWeapon.system.magazine.max) {
                     await firedWeapon.update({ "system.magazine.value": firedWeapon.system.magazine.max });
                 }
             }
