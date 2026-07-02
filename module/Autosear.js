@@ -1,5 +1,5 @@
 Hooks.once("ready", () => {
-  console.info("🎯 Efficient Autosear Dialog Script Loaded (v22 - Separated Menus)");
+  console.info("Efficient Autosear Dialog Script Loaded (v22 - Separated Menus)");
 });
 
 Hooks.on("createChatMessage", async function (message) {
