@@ -1,5 +1,5 @@
 Hooks.once("ready", () => {
-  console.info("🎯 Aimed Shot Targeting Script Loaded (AP Ammo Patch)");
+  console.info(" Aimed Shot Targeting Script Loaded (Clean UI Update)");
 });
 
 Hooks.on("createChatMessage", async function (message) {
@@ -81,17 +81,11 @@ Hooks.on("createChatMessage", async function (message) {
     const hasPowerRebuild = rebuildUpgrades.some(upg => upg.name.toLowerCase().includes("power"));
     const hasTechRebuild = rebuildUpgrades.some(upg => upg.name.toLowerCase().includes("tech"));
 
-    let rebuildHtml = "";
-    if (rebuildUpgrades.length > 0) {
-      const rebuildNames = rebuildUpgrades.map(u => u.name).join(", ");
-      rebuildHtml = `<p style='font-size: 14px; margin-bottom: 2px; color: #ffaa00;'><b>Rebuild(s):</b> ${rebuildNames}</p>`;
-    }
-
     // Optional Tech Rebuild Checkbox
     let techCheckboxHtml = "";
     if (hasTechRebuild) {
       techCheckboxHtml = `
-        <div style="margin-top: 10px; background: rgba(0, 255, 204, 0.1); padding: 5px; border-radius: 4px;">
+        <div style="margin-top: 5px; background: rgba(0, 255, 204, 0.1); padding: 5px; border-radius: 4px;">
           <label style="cursor: pointer;">
             <input type="checkbox" id="techRebuildArmor" />
             <b>Tech Rebuild:</b> Ignore 1/2 Armor
@@ -129,10 +123,6 @@ Hooks.on("createChatMessage", async function (message) {
       title: "Targeting Systems: Hit Confirmation",
       content: `
         <div style='text-align: center; margin: 10px 0;'>
-          <p style='font-size: 16px; margin-bottom: 5px; color: #00ffcc;'><b>🎯 Aimed Shot Executed</b></p>
-          <p style='font-size: 14px; margin-bottom: 2px;'><b>Target:</b> ${displayLocation}</p>
-          <p style='font-size: 14px; margin-bottom: 2px; color: #aaa;'><b>Ammo Loaded:</b> ${displayAmmo}</p>
-          ${rebuildHtml}
           ${techCheckboxHtml}
           <p style='font-size: 14px; margin-top: 10px;'>Did the shot hit?</p>
         </div>
