@@ -1,5 +1,5 @@
 Hooks.once("ready", () => {
-  console.info("🎯 Tech Rebuild Ammo Deduction Script Loaded (v2 - Autosear Logic)");
+  console.info("🎯 Tech Rebuild Ammo Deduction Script Loaded (v3 - Autofire Support)");
 });
 
 Hooks.on("createChatMessage", async function (message) {
@@ -8,8 +8,9 @@ Hooks.on("createChatMessage", async function (message) {
     return;
   }
 
+  const messageText = message.content || message.flavor || "";
   const DIV = document.createElement("DIV");
-  DIV.innerHTML = message.content || message.flavor || "";
+  DIV.innerHTML = messageText;
 
   // Check if this chat message is an Attack card
   const isAttack = DIV.querySelector(
@@ -38,7 +39,9 @@ Hooks.on("createChatMessage", async function (message) {
     return; 
   }
 
-  const ammoCost = 1;
+  // === DYNAMIC AMMO CHECK: 10 for Autofire, 1 for Standard ===
+  const isAutofire = messageText.toLowerCase().includes("autofire");
+  const ammoCost = isAutofire ? 10 : 1;
 
   // === 2. Find the Main Weapon ===
   // IMPORTANT: We explicitly ignore the fired dummy weapon here (i.id !== firedWeapon.id)
@@ -75,7 +78,7 @@ Hooks.on("createChatMessage", async function (message) {
       ChatMessage.create({
         user: game.userId,
         speaker: ChatMessage.getSpeaker(),
-        content: `<p><i><strong>*CLICK*</strong></i> Tried to fire, but the <strong>${mainWeapon.name}</strong> is out of ammo!</p>`,
+        content: `<p><i><strong>*CLICK*</strong></i> Tried to fire, but the <strong>${mainWeapon.name}</strong> doesn't have enough ammo!</p>`,
       });
       return; 
     } else {
