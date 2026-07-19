@@ -1,9 +1,6 @@
 Hooks.on("createChatMessage", async (message) => {
   const html = message.content;
 
-  console.log("NR CHECK MESSAGE:");
-  console.log(html);
-
   // Only attack cards
   if (!html.includes("rollDamage")) return;
 
@@ -14,8 +11,6 @@ Hooks.on("createChatMessage", async (message) => {
     .querySelector(".text-center")
     ?.textContent
     ?.trim();
-
-  console.log("NR WEAPON:", weaponName);
 
   if (!weaponName || !weaponName.includes("(NR)")) return;
 
@@ -30,12 +25,12 @@ Hooks.on("createChatMessage", async (message) => {
     content: `
       <div class="nr-card">
         <h3>${weaponName}</h3>
-        <p><strong>Ammo:</strong> ${ammoType}</p> <!-- Added Ammo Display -->
+        <p><strong>Ammo:</strong> ${ammoType}</p>
 
         <div style="display:flex;gap:5px;">
           <button class="nr-hit"
                   data-weapon="${weaponName}"
-                  data-ammo="${ammoType}"> <!-- Store ammo for the macro -->
+                  data-ammo="${ammoType}">
             HIT
           </button>
 
@@ -60,8 +55,8 @@ Hooks.on("renderChatMessage", (message, html) => {
       return;
     }
 
-    // Execute the macro and pass the ammoType as a variable
-    await macro.execute({ ammoType: ammoType });
+    // Pass the parameters to the macro directly
+    await macro.execute({ weaponName: weaponName, ammoType: ammoType });
 
     event.currentTarget.disabled = true;
 
