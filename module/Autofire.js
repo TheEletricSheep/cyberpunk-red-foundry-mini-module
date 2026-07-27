@@ -1,106 +1,115 @@
-console.log("=== customAutofireAmmo.js loaded (v2) ===");
+Hooks.once("ready", () => {
+  console.info("🎯 Autofire Ammo Module Script Loaded (v3)");
+});
 
-Hooks.on("createChatMessage", async (message) => {
-  // 1. Only run for the person who made the roll
-  if (!message.isAuthor) return;
-  if (!message?.content) return;
-
-  const html = document.createElement("div");
-  html.innerHTML = message.content;
-
-  // 2. Make sure this is an actual attack roll card
-  const isRollCard = html.querySelector(".d10-rollcard-data");
-  if (!isRollCard) return;
-
-  // 3. Make sure it's an Autofire attack (looks at the text on the card)
-  const textContent = html.textContent.toLowerCase();
-  if (!textContent.includes("autofire")) return;
-
-  // 4. Get the weapon name from the chat card
-  const weaponName = html.querySelector(".chat-rollTitle-stat .text-center")?.textContent?.trim();
-  if (!weaponName) return;
-
-  // 5. Find the actor who fired the weapon
-  const speaker = message.speaker;
-  let actor = game.actors.get(speaker.actor);
-  if (!actor && speaker.token) {
-    actor = canvas.tokens.get(speaker.token)?.actor;
-  }
-  if (!actor) return;
-
-  // 6. Find the specific weapon in the actor's inventory
-  const weapon = actor.items.find(i => i.type === "weapon" && i.name.trim() === weaponName);
-  if (!weapon) {
-    console.log(`[Autofire Ammo] Could not find weapon matching '${weaponName}' on actor.`);
+Hooks.on("createChatMessage", async function (message) {
+  // 1. Only the person who made the roll processes the ammo deduction
+  if (game.userId !== message.author?.id || !message || !message.content) {
     return;
   }
 
-  console.log(`[Autofire Ammo] Detected Autofire roll with ${weapon.name}`);
+  const DIV = document.createElement("DIV");
+  DIV.innerHTML = message.content;
 
-  let autofireValue = null;
+  // 2. Identify if this is an attack roll using the CPR system's rollDamage button
+  const isAttack = DIV.querySelector(
+    `[data-tooltip='${game.i18n.localize("CPR.actorSheets.commonActions.rollDamage")}']`
+  );
+  const data = DIV.querySelector("[data-action=rollDamage]")?.dataset;
 
-  // 7. Check if the weapon's name has it directly (e.g., "Assault Rifle (Autofire 20)")
-  let match = weapon.name.match(/autofire\s+(\d+)/i);
-  if (match) {
-    autofireValue = parseInt(match[1], 10);
-  }
-
-  // 8. If not in the name, check installed upgrades
-  if (!autofireValue) {
-    // Look through all items the actor has that are upgrades/gear
-    const upgrades = actor.items.filter(i => i.type === "upgrade" || i.type === "gear");
-    
-    for (const upg of upgrades) {
-      const upgMatch = upg.name.match(/autofire\s+(\d+)/i);
-      if (upgMatch) {
-        // Check if this upgrade is actually installed on the weapon we just fired
-        let isInstalled = false;
-        if (weapon.system?.upgrades?.includes(upg.id)) isInstalled = true;
-        if (weapon.system?.installedItems?.list?.includes(upg.id)) isInstalled = true;
-        
-        if (isInstalled) {
-          autofireValue = parseInt(upgMatch[1], 10);
-          console.log(`[Autofire Ammo] Found installed module: ${upg.name}`);
-          break;
-        }
-      }
-    }
-  }
-
-  // If we found nothing, or the value is 10 or less, do nothing.
-  if (!autofireValue || autofireValue <= 10) {
-    console.log(`[Autofire Ammo] No extra ammo required. (Module value: ${autofireValue})`);
+  if (!isAttack || !data) {
     return;
   }
 
-  // 9. Calculate extra ammo needed
-  const extraAmmo = autofireValue - 10;
-  console.log(`[Autofire Ammo] Preparing to deduct ${extraAmmo} extra rounds. Waiting 500ms...`);
+  // 3. Ensure this is specifically an AUTOFIRE attack
+  const isAutofire = message.content.toLowerCase().includes("autofire");
+  if (!isAutofire) {
+    return;
+  }
 
-  // 10. Wait 500ms so the Core System finishes subtracting the base 10 ammo first
-  setTimeout(async () => {
-    // Fetch the freshest version of the weapon from the database
-    const updatedWeapon = actor.items.get(weapon.id);
-    const currentAmmo = updatedWeapon.system.magazine.value;
+  // 4. Resolve the Token, Actor, and Item
+  let token =
+    canvas.scene?.tokens?.get(message.speaker?.token) ||
+    canvas.scene?.tokens?.get(data.tokenId) ||
+    canvas.scene?.tokens?.getName(message.speaker?.alias);
+  
+  const actor = token?.actor ?? game.actors.get(data.actorId);
+  const item = actor?.items?.get(data.itemId);
+
+  if (!actor || !item) {
+    console.log(`AutofireHook: Actor or Item missing.`);
+    return;
+  }
+
+  // 5. Look for installed upgrades
+  const upgradeIds = item.system.installedItems?.list || [];
+  const upgrades = upgradeIds
+    .map(id => actor.items.get(id))
+    .filter(upg => upg && upg.type === "itemUpgrade");
+
+  // === Autofire Upgrade Validation ===
+  const autofireUpgrades = upgrades.filter(
+    upg => upg.name && upg.name.toLowerCase().includes("autofire")
+  );
+
+  if (autofireUpgrades.length === 0) {
+    return; // No custom Autofire module installed, let the system handle normal 10 rounds
+  }
+
+  const autofireUpgrade = autofireUpgrades[0];
+  const autofireName = autofireUpgrade?.name;
+
+  // 6. Extract the number from the upgrade name (e.g., "Autofire 15" -> 15)
+  const match = autofireName.match(/\d+/);
+  let autofireInteger = match ? parseInt(match[0]) : null;
+
+  if (!Number.isInteger(autofireInteger)) {
+    console.log("AutofireHook: Autofire mod has no integer in its name.");
+    return;
+  }
+
+  // Calculate the extra ammo to deduct (Total module value - 10 base already spent by system)
+  let extraAmmo = autofireInteger - 10;
+
+  if (extraAmmo < 1) {
+    console.log("AutofireHook: Module value is 10 or less, no extra ammo to deduct.");
+    return;
+  }
+
+  // 7. Defensive checks for magazine
+  if (!item.system.magazine || typeof item.system.magazine.value !== "number") {
+    console.log("AutofireHook: Magazine or value missing from item.system.");
+    return;
+  }
+
+  let ammoCount = item.system.magazine.value;
+  ammoCount = ammoCount - extraAmmo;
+
+  // 8. Update the weapon's magazine
+  if (ammoCount < 0) {
+    await item.update({ "system.magazine.value": 0 });
     
-    // Deduct the extra amount
-    const newAmmo = Math.max(0, currentAmmo - extraAmmo);
-
-    await updatedWeapon.update({ "system.magazine.value": newAmmo });
-    console.log(`[Autofire Ammo] Deducted ${extraAmmo} extra ammo. Old: ${currentAmmo}, New: ${newAmmo}`);
-
-    // Post chat notification
-    await ChatMessage.create({
-      speaker: message.speaker,
+    ChatMessage.create({
+      user: game.userId,
+      speaker: ChatMessage.getSpeaker(),
+      content: `<p><i><strong>*CLICK*</strong></i> Your <strong>${autofireName}</strong> module drained the rest of the mag mid-spray!</p>`,
+    });
+  } else {
+    await item.update({ "system.magazine.value": ammoCount });
+    
+    // Post a brief, clean message in chat so the player and GM know the extra ammo was spent
+    ChatMessage.create({
+      user: game.userId,
+      speaker: ChatMessage.getSpeaker(),
       content: `
         <div class="cpr-block chat-rollTitle-stat" style="border: 1px solid #730000; border-radius: 5px; background: rgba(0,0,0,0.4); margin-top: 4px;">
           <div class="text-center text-small text-semi" style="padding: 5px;">
             <i class="fas fa-angle-double-right" style="color: #ff3333;"></i> 
-            <strong>Autofire ${autofireValue} Module</strong> spent ${extraAmmo} extra rounds!<br>
-            <span style="color: #aaa;">(${newAmmo} rounds remaining)</span>
+            <strong>${autofireName}</strong> spent ${extraAmmo} extra rounds!<br>
+            <span style="color: #aaa;">(${ammoCount} rounds remaining)</span>
           </div>
         </div>
       `
     });
-  }, 500); // 500ms delay prevents database collision
+  }
 });
