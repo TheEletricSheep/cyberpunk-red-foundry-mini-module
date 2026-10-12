@@ -1,13 +1,29 @@
+// 1. Register the toggle setting when Foundry initializes
+Hooks.once("init", () => {
+  game.settings.register("my-custom-cpr-tweaks", "enableEvasionDR", {
+    name: "Enable Evasion Damage Reduction",
+    hint: "When enabled, rolling Evasion will prompt the user for the Attack Total and automatically apply temporary Damage Reduction.",
+    scope: "world",     // "world" means only the GM can change it, and it applies to everyone
+    config: true,       // Shows up in the normal "Configure Settings" menu
+    type: Boolean,
+    default: false      // <--- OFF BY DEFAULT
+  });
+});
+
+// 2. The main chat message hook
 Hooks.on("createChatMessage", (message) => {
-  // 1. Only trigger for the user who actually made the roll
+  // Check if the module setting is turned off
+  if (!game.settings.get("my-custom-cpr-tweaks", "enableEvasionDR")) return;
+
+  // Only trigger for the user who actually made the roll
   if (message.user.id !== game.user.id) return;
 
   const html = message.content;
 
-  // 2. Check if the roll is an Evasion check
+  // Check if the roll is an Evasion check
   if (!html.includes("Evasion")) return;
 
-  // 3. Extract the Evasion total
+  // Extract the Evasion total
   let evasionTotal = 0;
   if (message.rolls && message.rolls.length > 0) {
     evasionTotal = message.rolls[0].total;
@@ -20,7 +36,7 @@ Hooks.on("createChatMessage", (message) => {
 
   if (isNaN(evasionTotal) || evasionTotal === 0) return;
 
-  // 4. Create the Dialog Window
+  // Create the Dialog Window
   new Dialog({
     title: "Evasion vs Attack",
     content: `
@@ -44,11 +60,11 @@ Hooks.on("createChatMessage", (message) => {
             return;
           }
 
-          // 5. Compare and Output
+          // Compare and Output
           if (evasionTotal > attackTotal) {
             const damageReduction = evasionTotal - attackTotal;
             
-            // --- UPDATED: Apply CPR-Formatted Active Effect ---
+            // Apply CPR-Formatted Active Effect
             const actor = ChatMessage.getSpeakerActor(message.speaker) || canvas.tokens.controlled[0]?.actor;
 
             if (actor) {
@@ -58,15 +74,14 @@ Hooks.on("createChatMessage", (message) => {
                 type: "base",
                 changes: [
                   {
-                    key: "bonuses.universalDamageReduction", // FIXED: Removed 'system.' prefix
-                    mode: 2, // CONST.ACTIVE_EFFECT_MODES.ADD
+                    key: "bonuses.universalDamageReduction",
+                    mode: 2, 
                     value: `${damageReduction}`
                   }
                 ],
                 duration: {
                   turns: 1 // Automatically expires at the end of their next turn
                 },
-                // FIXED: Added mandatory CPR system flags to prevent sheet breaking
                 flags: {
                   "cyberpunk-red-core": {
                     "changes": {
@@ -89,7 +104,6 @@ Hooks.on("createChatMessage", (message) => {
             } else {
               ui.notifications.warn("Could not find an actor to apply Damage Reduction to.");
             }
-            // --------------------------------------------------
 
             await ChatMessage.create({
               speaker: ChatMessage.getSpeaker(),
