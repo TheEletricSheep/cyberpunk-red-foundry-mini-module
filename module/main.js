@@ -9,6 +9,7 @@ import "./smartAmmo.js";
 import "./charge.js";
 import "./Autofireshotgun.js";
 import "./techammo.js";
+import "./evasionreduction.js";
 console.log("Cyberpunk Red Mini Module Loaded");
 
 Autofire.js
