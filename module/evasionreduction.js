@@ -64,8 +64,25 @@ Hooks.on("createChatMessage", (message) => {
           if (evasionTotal > attackTotal) {
             const damageReduction = evasionTotal - attackTotal;
             
-            // Apply CPR-Formatted Active Effect
-            const actor = ChatMessage.getSpeakerActor(message.speaker) || canvas.tokens.controlled[0]?.actor;
+            // --- UPDATED: Securely target the Token Actor instead of the Base Actor ---
+            let actor = null;
+            
+            // 1. Try to get the specific token on the map that made the roll
+            if (message.speaker.token) {
+              const tokenDoc = canvas.scene.tokens.get(message.speaker.token);
+              if (tokenDoc) actor = tokenDoc.actor;
+            }
+            
+            // 2. Fallback to currently selected token (if rolled from sidebar instead of map)
+            if (!actor && canvas.tokens.controlled.length > 0) {
+              actor = canvas.tokens.controlled[0].actor;
+            }
+            
+            // 3. Fallback to speaker actor (safest for Player Characters)
+            if (!actor) {
+              actor = ChatMessage.getSpeakerActor(message.speaker);
+            }
+            // -------------------------------------------------------------------------
 
             if (actor) {
               const effectData = {
