@@ -1,4 +1,7 @@
 Hooks.on("createChatMessage", async (message) => {
+  // PREVENT DUPLICATES: Only run this code for the user who made the attack
+  if (!message.isAuthor) return; 
+
   const html = message.content;
 
   // Only attack cards
@@ -22,6 +25,7 @@ Hooks.on("createChatMessage", async (message) => {
 
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker(),
+    // whisper: [game.user.id], // Uncomment this line if you ONLY want the attacker to see this prompt
     content: `
       <div class="nr-card">
         <h3>${weaponName}</h3>
