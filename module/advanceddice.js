@@ -62,6 +62,8 @@ function applyDropLowest(cprRoll, dropCount) {
   if (typeof cprRoll.rollTitle === "string") {
     cprRoll.rollTitle = `${cprRoll.rollTitle} (Dropped lowest: ${dropped.join(", ")})`;
   }
+
+  console.log(`%c${LOG_PREFIX} Kept [${faces.join(", ")}] | Dropped [${dropped.join(", ")}] | Total: ${cprRoll.resultTotal}`, "color: #00bcd4");
 }
 
 function wrapDamageRoll(cprRoll, extraDice) {
@@ -85,27 +87,26 @@ function wrapDamageRoll(cprRoll, extraDice) {
 
 // ---------------- Registration ----------------
 
-function register() {
-  const ItemClass = CONFIG.Item.documentClass;
-  const proto = ItemClass?.prototype;
+function patchProto(proto) {
+  if (!proto?.createRoll || proto.createRoll.__sanctumAdvDice) return false;
+  const orig = proto.createRoll;
+  const wrapped = function (type, ...rest) {
+    const result = orig.call(this, type, ...rest);
+    if (type !== "damage") return result;
 
-  if (proto?._createDamageRoll && !proto._createDamageRoll.__sanctumAdvDice) {
-    const orig = proto._createDamageRoll;
-    const wrapped = function (...args) {
-      const cprRoll = orig.apply(this, args);
-      const extraDice = getExtraDiceCount(this);
-      if (extraDice > 0 && cprRoll) {
-        return wrapDamageRoll(cprRoll, extraDice);
-      }
-      return cprRoll;
-    };
-    wrapped.__sanctumAdvDice = true;
-    proto._createDamageRoll = wrapped;
-    console.log(`%c${LOG_PREFIX} Ready (Dynamic Upgrade Detection)`, "color: #00bcd4; font-weight: bold");
-  } else {
-    console.warn(`${LOG_PREFIX} Could not find Item.prototype._createDamageRoll`);
-  }
+    const extraDice = getExtraDiceCount(this);
+    if (extraDice <= 0) return result;
+
+    if (result instanceof Promise) {
+      return result.then(r => wrapDamageRoll(r, extraDice));
+    }
+    return wrapDamageRoll(result, extraDice);
+  };
+  wrapped.__sanctumAdvDice = true;
+  proto.createRoll = wrapped;
+  return true;
 }
 
-if (globalThis.game?.ready) register();
-else Hooks.once("ready", register);
+function register() {
+  // Patch base Item class and CPRWeaponItem (if subclassed)
+  let patched = patchProto(CONFIG.Item.documentClass?.prototype);
