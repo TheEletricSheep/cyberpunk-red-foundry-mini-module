@@ -183,5 +183,5 @@ function register() {
   console.log(`%c${LOG_PREFIX} Ready (Automatic Upgrade Verification)`, "color: #9c27b0; font-weight: bold");
 }
 
-if (game.ready) register();
+if (globalThis.game?.ready) register();
 else Hooks.once("ready", register);
