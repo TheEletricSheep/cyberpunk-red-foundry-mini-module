@@ -1,12 +1,13 @@
 // ============================================
 // Sanctum - Shotgun Rechamber
-// Adds +1d6 to normal and shell damage rolls (skips Autofire)
+// Adds +1d6 to Shotgun Shell damage rolls only (skips slugs & Autofire)
 // ============================================
 
 console.log("%cSanctum Shotgun Rechamber | Loading", "color: #ff9800; font-weight: bold");
 
 const LOG_PREFIX = "Sanctum Shotgun Rechamber |";
 const UPGRADE_REGEX = /shotgun\s*rechamber/i;
+const SHELL_REGEX = /shell/i;
 
 // ---------------- Helpers ----------------
 
@@ -22,6 +23,24 @@ function isAutofireRoll(cprRoll) {
     || cprRoll?.autofire
     || /autofire/i.test(cprRoll?.rollTitle || "")
   );
+}
+
+function isShotgunShellLoaded(item) {
+  if (!item || !item.actor) return false;
+
+  const installedIds = item.system?.installedItems?.list;
+  if (Array.isArray(installedIds)) {
+    for (const id of installedIds) {
+      const installed = item.actor.items.get(id);
+      if (!installed || installed.type !== "ammo") continue;
+      if (SHELL_REGEX.test(installed.system?.variety || "") || SHELL_REGEX.test(installed.name || "")) {
+        return true;
+      }
+    }
+  }
+
+  const magName = item.system?.magazine?.ammoData?.name || "";
+  return SHELL_REGEX.test(magName);
 }
 
 function getRechamberBonus(item) {
@@ -63,7 +82,7 @@ function wrapDamageRoll(cprRoll, bonusDice, weaponIsAutofire) {
     if (typeof this.formula === "string") {
       const before = this.formula;
       this.formula = addDiceToFormula(this.formula, bonusDice);
-      console.log(`%c${LOG_PREFIX} ${before} -> ${this.formula}`, "color: #ff9800");
+      console.log(`%c${LOG_PREFIX} Shell ${before} -> ${this.formula}`, "color: #ff9800");
     }
 
     return origRoll(...args);
@@ -82,7 +101,7 @@ function patchProto(proto) {
     if (type !== "damage") return result;
 
     const bonusDice = getRechamberBonus(this);
-    if (bonusDice <= 0) return result;
+    if (bonusDice <= 0 || !isShotgunShellLoaded(this)) return result;
 
     const weaponIsAutofire = isAutofireWeapon(this);
     if (result instanceof Promise) {
