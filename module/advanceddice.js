@@ -1,13 +1,15 @@
 // ============================================
-// Sanctum - Advanced Dice (Roll Extra & Drop Lowest)
-// Automatically reads the number from installed "Advanced Dice X" upgrades
-// Skips Autofire damage rolls & displays dropped dice faces in #880425FF
+// Sanctum - Advanced Dice & Buffer Stock (Roll Extra & Drop Lowest)
+// - "Advanced Dice X": Adds X extra dice & drops lowest on non-Autofire damage rolls
+// - "Buffer Stock": Rolls 3d6 & drops lowest on Autofire damage rolls
+// Displays dropped dice faces in #880425FF
 // ============================================
 
 console.log("%cSanctum Advanced Dice | Loading", "color: #00bcd4; font-weight: bold");
 
 const LOG_PREFIX = "Sanctum Advanced Dice |";
 const UPGRADE_REGEX = /advanced\s*dice(?:\s*(\d+))?/i;
+const BUFFER_STOCK_REGEX = /buffer\s*stock/i;
 const DROPPED_COLOR = "#880425FF";
 
 let lastDropped = null;
@@ -28,21 +30,28 @@ function isAutofireRoll(cprRoll) {
   );
 }
 
-function getExtraDiceCount(item) {
-  if (!item || item.type !== "weapon" || !item.actor) return 0;
-  const upgradeIds = item.system?.installedItems?.list;
-  if (!Array.isArray(upgradeIds) || !upgradeIds.length) return 0;
+function getUpgradeData(item) {
+  const data = { extraDice: 0, bufferStock: false };
+  if (!item || item.type !== "weapon" || !item.actor) return data;
 
-  let total = 0;
+  const upgradeIds = item.system?.installedItems?.list;
+  if (!Array.isArray(upgradeIds) || !upgradeIds.length) return data;
+
   for (const id of upgradeIds) {
     const upg = item.actor.items.get(id);
     if (!upg || upg.type !== "itemUpgrade") continue;
-    const match = (upg.name || "").match(UPGRADE_REGEX);
-    if (match) {
-      total += match[1] ? parseInt(match[1], 10) : 1;
+    const name = upg.name || "";
+
+    const advMatch = name.match(UPGRADE_REGEX);
+    if (advMatch) {
+      data.extraDice += advMatch[1] ? parseInt(advMatch[1], 10) : 1;
+    }
+
+    if (BUFFER_STOCK_REGEX.test(name)) {
+      data.bufferStock = true;
     }
   }
-  return total;
+  return data;
 }
 
 function addDiceToFormula(formula, extra) {
@@ -52,7 +61,7 @@ function addDiceToFormula(formula, extra) {
   });
 }
 
-function applyDropLowest(cprRoll, dropCount) {
+function applyDropLowest(cprRoll, dropCount, autofire = false) {
   if (!Array.isArray(cprRoll.faces) || cprRoll.faces.length <= dropCount) return;
 
   const faces = [...cprRoll.faces];
@@ -69,8 +78,12 @@ function applyDropLowest(cprRoll, dropCount) {
   const droppedSum = dropped.reduce((a, b) => a + b, 0);
   cprRoll.faces = faces;
 
-  if (typeof cprRoll.resultTotal === "number") cprRoll.resultTotal -= droppedSum;
+  const mult = autofire
+    ? (Number(cprRoll.autofireMultiplier ?? cprRoll.multiplier ?? 1) || 1)
+    : 1;
+
   if (typeof cprRoll.initialRoll === "number") cprRoll.initialRoll -= droppedSum;
+  if (typeof cprRoll.resultTotal === "number") cprRoll.resultTotal -= droppedSum * mult;
 
   // Recalculate Critical Injury (2+ sixes among kept dice)
   if ("isCritical" in cprRoll) {
@@ -78,26 +91,30 @@ function applyDropLowest(cprRoll, dropCount) {
   }
 
   lastDropped = { dropped, time: Date.now() };
-  console.log(`%c${LOG_PREFIX} Kept [${faces.join(", ")}] | Dropped [${dropped.join(", ")}] | Total: ${cprRoll.resultTotal}`, "color: #00bcd4");
+  const label = autofire ? "Buffer Stock (Autofire)" : "Advanced Dice";
+  console.log(`%c${LOG_PREFIX} ${label} | Kept [${faces.join(", ")}] | Dropped [${dropped.join(", ")}] | Total: ${cprRoll.resultTotal}`, "color: #00bcd4");
 }
 
-function wrapDamageRoll(cprRoll, extraDice) {
+function wrapDamageRoll(cprRoll, opts) {
   if (!cprRoll || typeof cprRoll.roll !== "function" || cprRoll._sanctumAdvWrapped) return cprRoll;
 
   const origRoll = cprRoll.roll.bind(cprRoll);
   cprRoll._sanctumAdvWrapped = true;
 
   cprRoll.roll = async function (...args) {
-    if (isAutofireRoll(this)) {
+    const autofire = opts.weaponIsAutofire || isAutofireRoll(this);
+    const dropCount = autofire ? (opts.bufferStock ? 1 : 0) : opts.extraDice;
+
+    if (dropCount <= 0) {
       return origRoll(...args);
     }
 
     if (typeof this.formula === "string") {
-      this.formula = addDiceToFormula(this.formula, extraDice);
+      this.formula = addDiceToFormula(this.formula, dropCount);
     }
 
     await origRoll(...args);
-    applyDropLowest(this, extraDice);
+    applyDropLowest(this, dropCount, autofire);
     return this;
   };
 
@@ -164,15 +181,21 @@ function patchProto(proto) {
   const orig = proto.createRoll;
   const wrapped = function (type, ...rest) {
     const result = orig.call(this, type, ...rest);
-    if (type !== "damage" || isAutofireWeapon(this)) return result;
+    if (type !== "damage") return result;
 
-    const extraDice = getExtraDiceCount(this);
-    if (extraDice <= 0) return result;
+    const { extraDice, bufferStock } = getUpgradeData(this);
+    if (extraDice <= 0 && !bufferStock) return result;
+
+    const opts = {
+      extraDice,
+      bufferStock,
+      weaponIsAutofire: isAutofireWeapon(this)
+    };
 
     if (result instanceof Promise) {
-      return result.then(r => wrapDamageRoll(r, extraDice));
+      return result.then(r => wrapDamageRoll(r, opts));
     }
-    return wrapDamageRoll(result, extraDice);
+    return wrapDamageRoll(result, opts);
   };
   wrapped.__sanctumAdvDice = true;
   proto.createRoll = wrapped;
