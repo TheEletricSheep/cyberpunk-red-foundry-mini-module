@@ -8,5 +8,3 @@ import "./evasionreduction.js";
 import "./fire.js";
 import "./newRed.js";
 import "./smartAmmo.js";
-
-console.log("Cyberpunk Red Mini Module Loaded");
