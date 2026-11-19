@@ -1,4 +1,4 @@
-import "./powerRebuild.js";
+import "./Rebuild.js";
 import "./Autosear.js";
 import "./Autofire.js";
 import "./newRed.js";
