@@ -1,13 +1,14 @@
 // ============================================
 // Sanctum - Advanced Dice (Roll Extra & Drop Lowest)
 // Automatically reads the number from installed "Advanced Dice X" upgrades
-// Skips Autofire damage rolls & displays dropped dice faces in red
+// Skips Autofire damage rolls & displays dropped dice faces in #880425FF
 // ============================================
 
 console.log("%cSanctum Advanced Dice | Loading", "color: #00bcd4; font-weight: bold");
 
 const LOG_PREFIX = "Sanctum Advanced Dice |";
 const UPGRADE_REGEX = /advanced\s*dice(?:\s*(\d+))?/i;
+const DROPPED_COLOR = "#880425FF";
 
 let lastDropped = null;
 
@@ -115,25 +116,42 @@ function onPreCreateChatMessage(message, data) {
   const div = document.createElement("div");
   div.innerHTML = content;
 
-  // Find CPR's existing d6 dice images inside the card
+  // Match CPR's existing d6 dice images inside the card
   const diceImg = div.querySelector('img[src*="d6_"], img[src*="d6-"]');
   if (diceImg && diceImg.parentElement) {
     const container = diceImg.parentElement;
+    const baseSrc = diceImg.getAttribute("src") || diceImg.src;
+    const w = diceImg.getAttribute("width");
+    const h = diceImg.getAttribute("height");
+
     for (const val of dropped) {
-      const clone = diceImg.cloneNode(true);
-      clone.src = clone.src.replace(/(d6[_-])\d+/i, `$1${val}`);
-      clone.title = `Dropped lowest (${val})`;
-      clone.style.filter = "invert(22%) sepia(95%) saturate(5000%) hue-rotate(355deg) brightness(95%) contrast(110%)";
-      clone.style.opacity = "0.75";
-      container.appendChild(clone);
+      const src = baseSrc.replace(/(d6[_-])\d+/i, `$1${val}`);
+      const die = document.createElement("span");
+      die.className = diceImg.className;
+      die.title = `Dropped lowest (${val})`;
+      die.style.display = "inline-block";
+      die.style.backgroundColor = DROPPED_COLOR;
+      die.style.webkitMaskImage = `url("${src}")`;
+      die.style.maskImage = `url("${src}")`;
+      die.style.webkitMaskSize = "contain";
+      die.style.maskSize = "contain";
+      die.style.webkitMaskRepeat = "no-repeat";
+      die.style.maskRepeat = "no-repeat";
+      die.style.webkitMaskPosition = "center";
+      die.style.maskPosition = "center";
+      die.style.verticalAlign = "middle";
+      if (w) die.style.width = /^\d+$/.test(w) ? `${w}px` : w;
+      if (h) die.style.height = /^\d+$/.test(h) ? `${h}px` : h;
+      container.appendChild(die);
     }
+
     message.updateSource({ content: div.innerHTML });
     return;
   }
 
   // Fallback if no d6 image was found in the template
   const badges = dropped
-    .map(v => `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;background:#b30000;color:#fff;border:1px solid #ff4d4d;font-weight:bold;margin:0 2px;opacity:0.85;" title="Dropped lowest">${v}</span>`)
+    .map(v => `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;background:${DROPPED_COLOR};color:#fff;font-weight:bold;margin:0 2px;" title="Dropped lowest (${v})">${v}</span>`)
     .join("");
   const note = `<div class="text-small text-center" style="margin-top:4px;">Dropped: ${badges}</div>`;
   message.updateSource({ content: content + note });
