@@ -6,5 +6,5 @@ import "./Autosear.js";
 import "./charge.js";
 import "./evasionreduction.js";
 import "./fire.js";
-import "./newRed.js";
+import "./advanceddice.js"
 import "./smartAmmo.js";
