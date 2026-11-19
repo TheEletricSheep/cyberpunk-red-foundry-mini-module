@@ -2,7 +2,7 @@ import "./Rebuild.js";
 import "./Autosear.js";
 import "./Autofire.js";
 import "./newRed.js";
-import "./critWeapons.js ";
+import "./critWeapons.js";
 import "./Aimedextradamage.js";
 import "./fire.js";
 import "./smartAmmo.js";
@@ -11,5 +11,3 @@ import "./Autofireshotgun.js";
 import "./techammo.js";
 import "./evasionreduction.js";
 console.log("Cyberpunk Red Mini Module Loaded");
-
-Autofire.js
