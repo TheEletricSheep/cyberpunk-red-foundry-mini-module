@@ -1,7 +1,7 @@
 // ============================================
 // Sanctum - Advanced Dice (Roll Extra & Drop Lowest)
 // Automatically reads the number from installed "Advanced Dice X" upgrades
-// Skips Autofire damage rolls
+// Skips Autofire damage rolls & displays dropped dice faces in red
 // ============================================
 
 console.log("%cSanctum Advanced Dice | Loading", "color: #00bcd4; font-weight: bold");
@@ -112,7 +112,30 @@ function onPreCreateChatMessage(message, data) {
   const { dropped } = lastDropped;
   lastDropped = null;
 
-  const note = `<div class="text-small text-center" style="margin-top: 4px; opacity: 0.85;"><strong>Advanced Dice:</strong> Dropped lowest (${dropped.join(", ")})</div>`;
+  const div = document.createElement("div");
+  div.innerHTML = content;
+
+  // Find CPR's existing d6 dice images inside the card
+  const diceImg = div.querySelector('img[src*="d6_"], img[src*="d6-"]');
+  if (diceImg && diceImg.parentElement) {
+    const container = diceImg.parentElement;
+    for (const val of dropped) {
+      const clone = diceImg.cloneNode(true);
+      clone.src = clone.src.replace(/(d6[_-])\d+/i, `$1${val}`);
+      clone.title = `Dropped lowest (${val})`;
+      clone.style.filter = "invert(22%) sepia(95%) saturate(5000%) hue-rotate(355deg) brightness(95%) contrast(110%)";
+      clone.style.opacity = "0.75";
+      container.appendChild(clone);
+    }
+    message.updateSource({ content: div.innerHTML });
+    return;
+  }
+
+  // Fallback if no d6 image was found in the template
+  const badges = dropped
+    .map(v => `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;background:#b30000;color:#fff;border:1px solid #ff4d4d;font-weight:bold;margin:0 2px;opacity:0.85;" title="Dropped lowest">${v}</span>`)
+    .join("");
+  const note = `<div class="text-small text-center" style="margin-top:4px;">Dropped: ${badges}</div>`;
   message.updateSource({ content: content + note });
 }
 
