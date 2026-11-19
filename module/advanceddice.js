@@ -2,7 +2,7 @@
 // Sanctum - Advanced Dice & Buffer Stock (Roll Extra & Drop Lowest)
 // - "Advanced Dice X": Adds X extra dice & drops lowest on non-Autofire damage rolls
 // - "Buffer Stock": Rolls 3d6 & drops lowest on Autofire damage rolls
-// Displays dropped dice faces in #880425FF
+// Displays dropped dice using the native d6 face tinted to #880425FF
 // ============================================
 
 console.log("%cSanctum Advanced Dice | Loading", "color: #00bcd4; font-weight: bold");
@@ -138,89 +138,34 @@ function onPreCreateChatMessage(message, data) {
   if (diceImg && diceImg.parentElement) {
     const container = diceImg.parentElement;
     const baseSrc = diceImg.getAttribute("src") || diceImg.src;
-    const w = diceImg.getAttribute("width");
-    const h = diceImg.getAttribute("height");
 
     for (const val of dropped) {
       const src = baseSrc.replace(/(d6[_-])\d+/i, `$1${val}`);
-      const die = document.createElement("span");
-      die.className = diceImg.className;
-      die.title = `Dropped lowest (${val})`;
-      die.style.display = "inline-block";
-      die.style.backgroundColor = DROPPED_COLOR;
-      die.style.webkitMaskImage = `url("${src}")`;
-      die.style.maskImage = `url("${src}")`;
-      die.style.webkitMaskSize = "contain";
-      die.style.maskSize = "contain";
-      die.style.webkitMaskRepeat = "no-repeat";
-      die.style.maskRepeat = "no-repeat";
-      die.style.webkitMaskPosition = "center";
-      die.style.maskPosition = "center";
-      die.style.verticalAlign = "middle";
-      if (w) die.style.width = /^\d+$/.test(w) ? `${w}px` : w;
-      if (h) die.style.height = /^\d+$/.test(h) ? `${h}px` : h;
-      container.appendChild(die);
-    }
 
-    message.updateSource({ content: div.innerHTML });
-    return;
-  }
+      const wrap = document.createElement("span");
+      wrap.title = `Dropped lowest (${val})`;
+      wrap.style.position = "relative";
+      wrap.style.display = "inline-block";
+      wrap.style.lineHeight = "0";
+      wrap.style.verticalAlign = "middle";
+      wrap.style.isolation = "isolate";
 
-  // Fallback if no d6 image was found in the template
-  const badges = dropped
-    .map(v => `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;background:${DROPPED_COLOR};color:#fff;font-weight:bold;margin:0 2px;" title="Dropped lowest (${v})">${v}</span>`)
-    .join("");
-  const note = `<div class="text-small text-center" style="margin-top:4px;">Dropped: ${badges}</div>`;
-  message.updateSource({ content: content + note });
-}
+      const img = diceImg.cloneNode(true);
+      img.setAttribute("src", src);
+      img.style.display = "block";
+      img.style.filter = "contrast(1.4) brightness(0.85)";
 
-// ---------------- Registration ----------------
-
-function patchProto(proto) {
-  if (!proto?.createRoll || proto.createRoll.__sanctumAdvDice) return false;
-  const orig = proto.createRoll;
-  const wrapped = function (type, ...rest) {
-    const result = orig.call(this, type, ...rest);
-    if (type !== "damage") return result;
-
-    const { extraDice, bufferStock } = getUpgradeData(this);
-    if (extraDice <= 0 && !bufferStock) return result;
-
-    const opts = {
-      extraDice,
-      bufferStock,
-      weaponIsAutofire: isAutofireWeapon(this)
-    };
-
-    if (result instanceof Promise) {
-      return result.then(r => wrapDamageRoll(r, opts));
-    }
-    return wrapDamageRoll(result, opts);
-  };
-  wrapped.__sanctumAdvDice = true;
-  proto.createRoll = wrapped;
-  return true;
-}
-
-function register() {
-  if (globalThis._sanctumAdvDiceHook) {
-    Hooks.off("preCreateChatMessage", globalThis._sanctumAdvDiceHook);
-  }
-  globalThis._sanctumAdvDiceHook = Hooks.on("preCreateChatMessage", onPreCreateChatMessage);
-
-  let patched = patchProto(CONFIG.Item.documentClass?.prototype);
-  const sampleWeapon = game.items?.find(i => i.type === "weapon")
-    ?? game.actors?.contents.flatMap(a => a.items.contents).find(i => i.type === "weapon");
-  if (sampleWeapon) {
-    patched = patchProto(Object.getPrototypeOf(sampleWeapon)) || patched;
-  }
-
-  if (patched) {
-    console.log(`%c${LOG_PREFIX} Ready (Hooked createRoll)`, "color: #00bcd4; font-weight: bold");
-  } else {
-    console.warn(`${LOG_PREFIX} Could not find createRoll to patch`);
-  }
-}
-
-if (globalThis.game?.ready) register();
-else Hooks.once("ready", register);
+      const tint = document.createElement("span");
+      tint.style.position = "absolute";
+      tint.style.inset = "0";
+      tint.style.backgroundColor = DROPPED_COLOR;
+      tint.style.mixBlendMode = "lighten";
+      tint.style.pointerEvents = "none";
+      tint.style.webkitMaskImage = `url("${src}")`;
+      tint.style.maskImage = `url("${src}")`;
+      tint.style.webkitMaskSize = "contain";
+      tint.style.maskSize = "contain";
+      tint.style.webkitMaskRepeat = "no-repeat";
+      tint.style.maskRepeat = "no-repeat";
+      tint.style.webkitMaskPosition = "center";
+      tint.style.maskPosition = "center";
