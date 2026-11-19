@@ -133,14 +133,19 @@ function onPreCreateChatMessage(message, data) {
   const div = document.createElement("div");
   div.innerHTML = content;
 
-  // Match CPR's existing d6 dice images inside the card
-  const diceImg = div.querySelector('img[src*="d6_"], img[src*="d6-"]');
+  // Prefer a standard (non-PREEM) d6 image if present in the card
+  const allDice = [...div.querySelectorAll('img[src*="d6_"], img[src*="d6-"]')];
+  const diceImg = allDice.find(img => !/preem/i.test(img.getAttribute("src") || "")) || allDice[0];
+
   if (diceImg && diceImg.parentElement) {
     const container = diceImg.parentElement;
     const baseSrc = diceImg.getAttribute("src") || diceImg.src;
 
     for (const val of dropped) {
-      const src = baseSrc.replace(/(d6[_-])\d+/i, `$1${val}`);
+      // Strip _preem / crit suffixes and switch /red/ to /black/ so the standard die face always loads
+      const src = baseSrc
+        .replace(/(d6[_-])\d+[^.]*/i, `$1${val}`)
+        .replace(/\/red\//i, "/black/");
 
       const wrap = document.createElement("span");
       wrap.title = `Dropped lowest (${val})`;
