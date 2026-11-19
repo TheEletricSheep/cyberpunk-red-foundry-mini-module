@@ -108,5 +108,19 @@ function patchProto(proto) {
 }
 
 function register() {
-  // Patch base Item class and CPRWeaponItem (if subclassed)
   let patched = patchProto(CONFIG.Item.documentClass?.prototype);
+  const sampleWeapon = game.items?.find(i => i.type === "weapon")
+    ?? game.actors?.contents.flatMap(a => a.items.contents).find(i => i.type === "weapon");
+  if (sampleWeapon) {
+    patched = patchProto(Object.getPrototypeOf(sampleWeapon)) || patched;
+  }
+
+  if (patched) {
+    console.log(`%c${LOG_PREFIX} Ready (Hooked createRoll)`, "color: #00bcd4; font-weight: bold");
+  } else {
+    console.warn(`${LOG_PREFIX} Could not find createRoll to patch`);
+  }
+}
+
+if (globalThis.game?.ready) register();
+else Hooks.once("ready", register);
