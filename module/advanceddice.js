@@ -169,3 +169,71 @@ function onPreCreateChatMessage(message, data) {
       tint.style.maskRepeat = "no-repeat";
       tint.style.webkitMaskPosition = "center";
       tint.style.maskPosition = "center";
+
+      wrap.appendChild(img);
+      wrap.appendChild(tint);
+      container.appendChild(wrap);
+    }
+
+    message.updateSource({ content: div.innerHTML });
+    return;
+  }
+
+  // Fallback if no d6 image was found in the template
+  const badges = dropped
+    .map(v => `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;background:${DROPPED_COLOR};color:#fff;font-weight:bold;margin:0 2px;" title="Dropped lowest (${v})">${v}</span>`)
+    .join("");
+  const note = `<div class="text-small text-center" style="margin-top:4px;">Dropped: ${badges}</div>`;
+  message.updateSource({ content: content + note });
+}
+
+// ---------------- Registration ----------------
+
+function patchProto(proto) {
+  if (!proto?.createRoll || proto.createRoll.__sanctumAdvDice) return false;
+  const orig = proto.createRoll;
+  const wrapped = function (type, ...rest) {
+    const result = orig.call(this, type, ...rest);
+    if (type !== "damage") return result;
+
+    const { extraDice, bufferStock } = getUpgradeData(this);
+    if (extraDice <= 0 && !bufferStock) return result;
+
+    const opts = {
+      extraDice,
+      bufferStock,
+      weaponIsAutofire: isAutofireWeapon(this)
+    };
+
+    if (result instanceof Promise) {
+      return result.then(r => wrapDamageRoll(r, opts));
+    }
+    return wrapDamageRoll(result, opts);
+  };
+  wrapped.__sanctumAdvDice = true;
+  proto.createRoll = wrapped;
+  return true;
+}
+
+function register() {
+  if (globalThis._sanctumAdvDiceHook) {
+    Hooks.off("preCreateChatMessage", globalThis._sanctumAdvDiceHook);
+  }
+  globalThis._sanctumAdvDiceHook = Hooks.on("preCreateChatMessage", onPreCreateChatMessage);
+
+  let patched = patchProto(CONFIG.Item.documentClass?.prototype);
+  const sampleWeapon = game.items?.find(i => i.type === "weapon")
+    ?? game.actors?.contents.flatMap(a => a.items.contents).find(i => i.type === "weapon");
+  if (sampleWeapon) {
+    patched = patchProto(Object.getPrototypeOf(sampleWeapon)) || patched;
+  }
+
+  if (patched) {
+    console.log(`%c${LOG_PREFIX} Ready (Hooked createRoll)`, "color: #00bcd4; font-weight: bold");
+  } else {
+    console.warn(`${LOG_PREFIX} Could not find createRoll to patch`);
+  }
+}
+
+if (globalThis.game?.ready) register();
+else Hooks.once("ready", register);
