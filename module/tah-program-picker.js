@@ -165,7 +165,7 @@ function buildProgramRow(actor, deck, prog, hudApp) {
     ev.preventDefault();
     ev.stopPropagation();
     if (isAttacker) {
-      await rollProgram(ev, actor, prog, "attack");
+      await rollProgram(ev, actor, deck, prog, "atk");
     } else {
       await toggleProgramRez(actor, deck, prog, hudApp);
     }
@@ -183,13 +183,13 @@ function buildProgramRow(actor, deck, prog, hudApp) {
   if (isAttacker) {
     row.appendChild(
       makeMiniBtn("DMG", `Roll Damage for ${prog.name}`, (ev) =>
-        rollProgram(ev, actor, prog, "damage")
+        rollProgram(ev, actor, deck, prog, "damage")
       )
     );
   } else if (isRezzed && ["booster", "defender"].includes(progClass)) {
     row.appendChild(
       makeMiniBtn("DEF", `Roll Defense for ${prog.name}`, (ev) =>
-        rollProgram(ev, actor, prog, "defense")
+        rollProgram(ev, actor, deck, prog, "def")
       )
     );
   }
@@ -237,22 +237,18 @@ async function toggleProgramRez(actor, deck, prog, hudApp) {
   hudApp?.refresh();
 }
 
-async function rollProgram(event, actor, prog, type) {
-  // CPR program roll types: "attack", "damage", "defense"
-  const rollType =
-    type === "damage"
-      ? "damage"
-      : type === "defense"
-      ? "defense"
-      : "attack";
+async function rollProgram(event, actor, deck, prog, executionType) {
+  const cprRoll = deck.createRoll("cyberdeckProgram", actor, {
+    executionType,
+    programId: prog.id,
+  });
 
-  const cprRoll = prog.createRoll(rollType, actor);
   if (!cprRoll) {
-    ui.notifications.warn(`Could not create ${rollType} roll for ${prog.name}.`);
+    ui.notifications.warn(`Could not create ${executionType} roll for ${prog.name}.`);
     return;
   }
 
-  const keepRolling = await cprRoll.handleRollDialog(event, actor, prog);
+  const keepRolling = await cprRoll.handleRollDialog(event, actor, deck);
   if (!keepRolling) return;
 
   await cprRoll.roll();
