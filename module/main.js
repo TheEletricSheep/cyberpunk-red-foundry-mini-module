@@ -3,7 +3,6 @@ import "./Aimedextradamage.js";
 import "./Autofire.js";
 import "./Autosear.js";
 import "./advanceddice.js";
-import "./charge.js";
 import "./evasionreduction.js";
 import "./fire.js";
 import "./smartAmmo.js";
