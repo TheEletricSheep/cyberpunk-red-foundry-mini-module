@@ -9,5 +9,6 @@ import "./evasionreduction.js";
 import "./fire.js";
 import "./smartAmmo.js";
 import "./shotgunrechamber.js";
+import './tah-program-picker.js';
 
 console.log("Cyberpunk Red Mini Module Loaded");
