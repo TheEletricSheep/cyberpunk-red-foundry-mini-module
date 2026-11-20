@@ -9,7 +9,7 @@ import "./evasionreduction.js";
 import "./fire.js";
 import "./smartAmmo.js";
 import "./shotgunrechamber.js";
-import './tah-program-picker.js";
+import "./tah-program-picker.js";
 import "./lever.js";
 
 
