@@ -1,7 +1,6 @@
 import "./Rebuild.js";
 import "./Aimedextradamage.js";
 import "./Autofire.js";
-import "./Autofireshotgun.js";
 import "./Autosear.js";
 import "./advanceddice.js";
 import "./charge.js";
