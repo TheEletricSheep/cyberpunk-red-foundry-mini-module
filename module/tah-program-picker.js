@@ -5,7 +5,7 @@ Hooks.on("renderCPRCombatHUD", (app, html, data) => {
   const root = html instanceof jQuery ? html[0] : html;
   if (!root) return;
 
-  // 1. Inject a "PROGRAMS" button next to each Cyberdeck in WEAPONS & EQUIP STATE
+  // 1. WEAPONS & EQUIP STATE: "PROGRAMS X/Y" button next to each Cyberdeck
   if (data.panels?.gear) {
     const equipButtons = root.querySelectorAll('[data-action="equip-cycle"][data-item-id]');
     for (const equipBtn of equipButtons) {
@@ -46,7 +46,7 @@ Hooks.on("renderCPRCombatHUD", (app, html, data) => {
     }
   }
 
-  // 2. Also inject a "MANAGE PROGRAMS" button inside the NET panel for the equipped deck
+  // 2. NET PANEL: List installed programs and run them on click
   if (data.panels?.interface) {
     const equippedDeck = actor.itemTypes.cyberdeck.find(
       (d) => d.system.equipped === "equipped"
@@ -55,165 +55,103 @@ Hooks.on("renderCPRCombatHUD", (app, html, data) => {
     const panelContainer =
       firstIfaceBtn?.closest('[class*="panel"]') || firstIfaceBtn?.parentElement;
 
-    if (equippedDeck && panelContainer && !panelContainer.querySelector(".chud-net-prog-btn")) {
-      const slots = equippedDeck.system.installedItems?.slots ?? 0;
-      const used = equippedDeck.system.installedItems?.usedSlots ?? 0;
-
-      const netBtn = document.createElement("button");
-      netBtn.type = "button";
-      netBtn.className = "chud-net-prog-btn";
-      netBtn.textContent = `MANAGE PROGRAMS (${used}/${slots})`;
-      Object.assign(netBtn.style, {
-        display: "block",
-        width: "100%",
-        marginTop: "8px",
-        padding: "5px 8px",
-        fontSize: "11px",
-        fontWeight: "700",
-        letterSpacing: "0.05em",
-        background: "#1a1d24",
-        color: "#ff4757",
-        border: "1px solid #d13443",
-        borderRadius: "2px",
-        cursor: "pointer",
-      });
-
-      netBtn.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        openProgramPicker(actor, equippedDeck, app);
-      });
-
-      panelContainer.appendChild(netBtn);
+    if (!equippedDeck || !panelContainer || panelContainer.querySelector(".chud-net-programs")) {
+      return;
     }
+
+    const installedIds = equippedDeck.system.installedItems?.list ?? [];
+    const programs = actor.items
+      .filter((i) => i.type === "program" && installedIds.includes(i.id))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "chud-net-programs";
+    Object.assign(wrapper.style, {
+      marginTop: "10px",
+      paddingTop: "8px",
+      borderTop: "1px solid #2c313d",
+      display: "flex",
+      flexDirection: "column",
+      gap: "4px",
+    });
+
+    const header = document.createElement("div");
+    header.textContent = `INSTALLED PROGRAMS (${programs.length})`;
+    Object.assign(header.style, {
+      fontSize: "10px",
+      fontWeight: "700",
+      letterSpacing: "0.08em",
+      color: "#ff4757",
+      marginBottom: "2px",
+    });
+    wrapper.appendChild(header);
+
+    if (programs.length === 0) {
+      const empty = document.createElement("div");
+      empty.textContent = "No programs installed";
+      Object.assign(empty.style, {
+        fontSize: "11px",
+        opacity: "0.6",
+        padding: "2px 0",
+      });
+      wrapper.appendChild(empty);
+    } else {
+      for (const prog of programs) {
+        wrapper.appendChild(buildProgramRow(actor, equippedDeck, prog, app));
+      }
+    }
+
+    panelContainer.appendChild(wrapper);
   }
 });
 
-function openProgramPicker(actor, deck, hudApp) {
-  const installedIds = new Set(deck.system.installedItems?.list ?? []);
-  const allPrograms = [...actor.itemTypes.program].sort((a, b) =>
-    a.name.localeCompare(b.name)
-  );
+function buildProgramRow(actor, deck, prog, hudApp) {
+  const progClass = prog.system.class ?? "";
+  const isAttacker =
+    progClass === "antipersonnelattacker" || progClass === "antiprogramattacker";
+  const isRezzed = !!prog.system.isRezzed;
 
-  if (allPrograms.length === 0) {
-    ui.notifications.warn(`${actor.name} has no programs in inventory.`);
-    return;
-  }
-
-  const maxSlots = deck.system.installedItems?.slots ?? 0;
-  // Account for non-program hardware/upgrades already occupying slots on the deck
-  const nonProgramUsedSlots = (deck.system.installedItems?.list ?? [])
-    .map((id) => actor.items.get(id))
-    .filter((item) => item && item.type !== "program")
-    .reduce((sum, item) => sum + (Number(item.system.size) || 1), 0);
-
-  const rows = allPrograms
-    .map((prog) => {
-      const isInstalledHere = installedIds.has(prog.id);
-      const isInstalledElsewhere = prog.system.isInstalled && !isInstalledHere;
-      const size = Number(prog.system.size) || 1;
-      const progClass = prog.system.class ?? "";
-
-      return `
-        <label style="
-          display:flex; align-items:center; gap:8px; padding:6px 8px;
-          border:1px solid ${isInstalledHere ? "#d13443" : "#2c313d"};
-          background:${isInstalledHere ? "rgba(209,52,67,0.12)" : "#14161c"};
-          margin-bottom:4px; cursor:${isInstalledElsewhere ? "not-allowed" : "pointer"};
-          opacity:${isInstalledElsewhere ? "0.45" : "1"};
-        ">
-          <input
-            type="checkbox"
-            name="programId"
-            value="${prog.id}"
-            data-size="${size}"
-            ${isInstalledHere ? "checked" : ""}
-            ${isInstalledElsewhere ? "disabled" : ""}
-          />
-          <img src="${prog.img}" width="24" height="24" style="border:none; flex:0 0 24px;" />
-          <div style="flex:1; min-width:0;">
-            <div style="font-weight:600; color:#eef1f7;">${prog.name}</div>
-            <div style="font-size:11px; opacity:0.7; text-transform:uppercase;">
-              ${progClass}${isInstalledElsewhere ? " • installed on another deck" : ""}
-            </div>
-          </div>
-          <span style="font-size:11px; font-weight:700; opacity:0.85;">
-            ${size} SLOT${size === 1 ? "" : "S"}
-          </span>
-        </label>
-      `;
-    })
-    .join("");
-
-  const dialog = new Dialog({
-    title: `${deck.name} — Installed Programs`,
-    content: `
-      <form style="color:#e2e6ef;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; padding:4px 8px; background:#0f1116; border:1px solid #2c313d;">
-          <span style="font-size:12px; font-weight:700; letter-spacing:0.05em;">SLOTS USED</span>
-          <span class="chud-slot-counter" style="font-size:13px; font-weight:700;"></span>
-        </div>
-        <div style="max-height:340px; overflow-y:auto; padding-right:2px;">
-          ${rows}
-        </div>
-      </form>
-    `,
-    render: (html) => {
-      const updateSlotCounter = () => {
-        let progSlots = 0;
-        html.find('input[name="programId"]:checked').each((_, el) => {
-          progSlots += Number(el.dataset.size) || 1;
-        });
-        const totalUsed = nonProgramUsedSlots + progSlots;
-        const over = totalUsed > maxSlots;
-
-        const counter = html.find(".chud-slot-counter");
-        counter.text(`${totalUsed} / ${maxSlots}`);
-        counter.css("color", over ? "#ff4757" : "#4cd137");
-
-        html.closest(".app").find('button[data-button="apply"]').prop("disabled", over);
-      };
-
-      html.on("change", 'input[name="programId"]', updateSlotCounter);
-      updateSlotCounter();
-    },
-    buttons: {
-      apply: {
-        icon: '<i class="fas fa-check"></i>',
-        label: "Apply",
-        callback: async (html) => {
-          const selectedIds = new Set(
-            html
-              .find('input[name="programId"]:checked')
-              .map((_, el) => el.value)
-              .get()
-          );
-
-          const toUninstall = allPrograms.filter(
-            (p) => !selectedIds.has(p.id) && installedIds.has(p.id)
-          );
-          const toInstall = allPrograms.filter(
-            (p) => selectedIds.has(p.id) && !installedIds.has(p.id)
-          );
-
-          // Uninstall first so freed slots are available for newly installed programs
-          if (toUninstall.length > 0) {
-            await deck.uninstallItems(toUninstall);
-          }
-          if (toInstall.length > 0) {
-            await deck.installItems(toInstall);
-          }
-
-          hudApp?.refresh();
-        },
-      },
-      cancel: {
-        icon: '<i class="fas fa-times"></i>',
-        label: "Cancel",
-      },
-    },
-    default: "apply",
+  const row = document.createElement("div");
+  Object.assign(row.style, {
+    display: "flex",
+    alignItems: "center",
+    gap: "4px",
   });
 
-  dialog.render(true);
-}
+  const mainBtn = document.createElement("button");
+  mainBtn.type = "button";
+  mainBtn.title = isAttacker
+    ? `Click to roll Attack with ${prog.name} (Right-click for sheet)`
+    : `Click to ${isRezzed ? "Derez" : "Rez"} ${prog.name} (Right-click for sheet)`;
+
+  Object.assign(mainBtn.style, {
+    flex: "1",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "6px",
+    padding: "4px 8px",
+    fontSize: "11px",
+    fontWeight: "600",
+    background: isRezzed ? "rgba(209, 52, 67, 0.22)" : "#14161c",
+    color: "#eef1f7",
+    border: `1px solid ${isRezzed ? "#ff4757" : "#2c313d"}`,
+    borderRadius: "2px",
+    cursor: "pointer",
+    textAlign: "left",
+    lineHeight: "1.3",
+  });
+
+  const left = document.createElement("span");
+  left.style.display = "flex";
+  left.style.alignItems = "center";
+  left.style.gap = "6px";
+  left.innerHTML = `<img src="${prog.img}" width="16" height="16" style="border:none;" /><span>${prog.name}</span>`;
+
+  const badge = document.createElement("span");
+  Object.assign(badge.style, {
+    fontSize: "9px",
+    fontWeight: "700",
+    letterSpacing: "0.05em",
+    opacity: isRezzed ? "1" : "0.65",
+    color: isRezzed ? "#ff47
