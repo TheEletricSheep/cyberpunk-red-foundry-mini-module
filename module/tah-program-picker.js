@@ -1,3 +1,18 @@
+let _cprModules = null;
+
+async function getCprModules() {
+  if (_cprModules) return _cprModules;
+  const base = foundry.utils.getRoute("systems/cyberpunk-red-core/modules");
+  const [{ default: CPRChat }, { default: CPRSystemUtils }, CPRRolls] =
+    await Promise.all([
+      import(`${base}/chat/cpr-chat.js`),
+      import(`${base}/utils/cpr-systemUtils.js`),
+      import(`${base}/rolls/cpr-rolls.js`),
+    ]);
+  _cprModules = { CPRChat, CPRSystemUtils, CPRRolls };
+  return _cprModules;
+}
+
 Hooks.on("renderCPRCombatHUD", (app, html, data) => {
   const actor = app.actor;
   if (!actor) return;
@@ -165,7 +180,7 @@ function buildProgramRow(actor, deck, prog, hudApp) {
     ev.preventDefault();
     ev.stopPropagation();
     if (isAttacker) {
-      await rollProgram(ev, actor, deck, prog, "atk");
+      await rollProgram(ev, actor, deck, prog, "atk", hudApp);
     } else {
       await toggleProgramRez(actor, deck, prog, hudApp);
     }
@@ -183,13 +198,13 @@ function buildProgramRow(actor, deck, prog, hudApp) {
   if (isAttacker) {
     row.appendChild(
       makeMiniBtn("DMG", `Roll Damage for ${prog.name}`, (ev) =>
-        rollProgram(ev, actor, deck, prog, "damage")
+        rollProgram(ev, actor, deck, prog, "damage", hudApp)
       )
     );
   } else if (isRezzed && ["booster", "defender"].includes(progClass)) {
     row.appendChild(
       makeMiniBtn("DEF", `Roll Defense for ${prog.name}`, (ev) =>
-        rollProgram(ev, actor, deck, prog, "def")
+        rollProgram(ev, actor, deck, prog, "def", hudApp)
       )
     );
   }
@@ -237,25 +252,80 @@ async function toggleProgramRez(actor, deck, prog, hudApp) {
   hudApp?.refresh();
 }
 
-async function rollProgram(event, actor, deck, prog, executionType) {
-  const cprRoll = deck.createRoll("cyberdeckProgram", actor, {
-    executionType,
-    programId: prog.id,
-  });
+async function rollProgram(event, actor, deck, prog, executionType, hudApp) {
+  try {
+    const { CPRChat, CPRSystemUtils, CPRRolls } = await getCprModules();
 
-  if (!cprRoll) {
-    ui.notifications.warn(`Could not create ${executionType} roll for ${prog.name}.`);
-    return;
+    const netRoleItem =
+      actor.itemTypes.role.find(
+        (r) => r.id === actor.system.roleInfo?.activeNetRole
+      ) ??
+      actor.itemTypes.role.find((r) =>
+        r.name.toLowerCase().includes("netrunner")
+      ) ??
+      actor.itemTypes.role[0];
+
+    const rollType =
+      CPRRolls.rollTypes.CYBERDECKPROGRAM ?? "cyberdeckProgram";
+
+    let cprRoll = deck.createRoll(rollType, actor, {
+      cyberdeck: deck,
+      netRoleItem,
+      programId: prog.id,
+      executionType,
+    });
+
+    if (!cprRoll) {
+      console.error("[CHUD Program Picker] createRoll returned empty", {
+        rollType,
+        availableRollTypes: CPRRolls.rollTypes,
+        executionType,
+        prog,
+        deck,
+        netRoleItem,
+      });
+      ui.notifications.warn(
+        `Could not create ${executionType} roll for ${prog.name}. Check F12 console.`
+      );
+      return;
+    }
+
+    const rollEvent = {
+      type: "click",
+      ctrlKey: event?.ctrlKey ?? false,
+      metaKey: event?.metaKey ?? false,
+    };
+
+    const keepRolling = await cprRoll.handleRollDialog(rollEvent, actor, deck);
+    if (!keepRolling) return;
+
+    cprRoll = await deck.confirmRoll(cprRoll);
+    if (!cprRoll) return;
+
+    await cprRoll.roll();
+
+    // Consume LUCK if spent in the roll dialog
+    if (Number.isInteger(cprRoll.luck) && cprRoll.luck > 0) {
+      const luckStat = actor.system.stats.luck.value;
+      await actor.update({
+        "system.stats.luck.value":
+          luckStat - (cprRoll.luck > luckStat ? luckStat : cprRoll.luck),
+      });
+    }
+
+    const targetedTokens = CPRSystemUtils.getUserTargetedOrSelected("targeted");
+    cprRoll.entityData = {
+      actor: actor.id,
+      token: hudApp?._tokenDoc?.id ?? null,
+      tokens: targetedTokens,
+      item: deck.id,
+    };
+
+    CPRChat.RenderRollCard(cprRoll);
+  } catch (err) {
+    console.error("[CHUD Program Picker] Program roll failed:", err);
+    ui.notifications.error(`Program roll failed: ${err.message}`);
   }
-
-  const keepRolling = await cprRoll.handleRollDialog(event, actor, deck);
-  if (!keepRolling) return;
-
-  await cprRoll.roll();
-  const { default: CPRChat } = await import(
-    "/systems/cyberpunk-red-core/modules/chat/cpr-chat.js"
-  );
-  CPRChat.RenderRollCard(cprRoll);
 }
 
 function openProgramPicker(actor, deck, hudApp) {
