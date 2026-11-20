@@ -1,117 +1,212 @@
-Hooks.once("ready", () => {
-  console.info("Efficient Autosear Dialog Script Loaded (v22 - Separated Menus)");
-});
+// ============================================
+// Sanctum - Efficient Autosear & Shotgun Automatic Control Group (Standalone)
+// - "Efficient Autosear": Autofire skill + damage card for 6 bullets
+// - "Shotgun Automatic Control Group": Autofire skill + damage card for 4 bullets
+// ============================================
 
-Hooks.on("createChatMessage", async function (message) {
-  if (game.userId !== (message.author?.id ?? message.user?.id) || !message || !message.content) return;
+console.log("%cSanctum Efficient Autosear | Loading", "color: #4caf50; font-weight: bold");
 
-  const DIV = document.createElement("DIV");
-  DIV.innerHTML = message.content;
+const FLAG_SCOPE = "world";
+const FLAG_KEY = "isEfficient";
+const LOG_PREFIX = "Sanctum Efficient Autosear |";
 
-  const isAttack = DIV.querySelector(`[data-tooltip='${game.i18n.localize("CPR.actorSheets.commonActions.rollDamage")}']`);
-  const data = DIV.querySelector("[data-action=rollDamage]")?.dataset;
+// ---------------- Helpers ----------------
 
-  if (!isAttack || !data) return;
+function logError(context, err, notify = false) {
+  console.error(`${LOG_PREFIX} ${context}:`, err);
+  if (notify) ui.notifications?.error(`Sanctum Efficient Autosear: ${context} failed (see console).`);
+}
 
-  let token = canvas.scene?.tokens?.get(message.speaker?.token) || canvas.scene?.tokens?.get(data.tokenId) || canvas.scene?.tokens?.getName(message.speaker?.alias);
-  const actor = token?.actor ?? game.actors.get(data.actorId);
-  const firedWeapon = actor?.items?.get(data.itemId);
+function getElement(html) {
+  if (!html) return null;
+  if (html instanceof HTMLElement) return html;
+  if (html[0] instanceof HTMLElement) return html[0];
+  return null;
+}
 
-  if (!actor || !firedWeapon || !firedWeapon.name.toLowerCase().includes("efficient autosear")) return;
+function getEfficientCost(item) {
+  if (!item || item.type !== "weapon" || !item.actor) return 0;
+  const upgradeIds = item.system?.installedItems?.list;
+  if (!Array.isArray(upgradeIds) || !upgradeIds.length) return 0;
 
-  const match = firedWeapon.name.match(/\d+/);
-  let ammoCost = match ? parseInt(match[0]) : 6;
+  let cost = 0;
+  for (const id of upgradeIds) {
+    const upg = item.actor.items.get(id);
+    if (!upg || upg.type !== "itemUpgrade") continue;
+    const name = (upg.name || "").toLowerCase();
 
-  const allOtherWeapons = actor.items.filter(i => i.type === "weapon" && i.id !== firedWeapon.id && i.system.isRanged);
-  let mainWeapon = allOtherWeapons.find(w => (w.system.installedItems?.list || []).some(id => actor.items.get(id)?.name.toLowerCase().includes("efficient autosear")));
-
-  if (!mainWeapon) {
-    ui.notifications.warn("Could not find a main weapon with the Efficient Autosear upgrade installed!");
-    return;
-  }
-
-  // Deduct Ammo
-  if (mainWeapon.system.magazine && typeof mainWeapon.system.magazine.value === "number") {
-    let currentAmmo = mainWeapon.system.magazine.value;
-    if (currentAmmo < ammoCost) {
-      await mainWeapon.update({ "system.magazine.value": 0 });
-      ChatMessage.create({ user: game.userId, speaker: ChatMessage.getSpeaker(), content: `<p><i><strong>*CLICK*</strong></i> Tried to autofire, but the <strong>${mainWeapon.name}</strong> didn't have enough ammo!</p>` });
-      return;
+    if (name.includes("shotgun automatic control group")) {
+      cost = cost ? Math.min(cost, 4) : 4;
+    } else if (name.includes("efficient autosear")) {
+      cost = cost ? Math.min(cost, 6) : 6;
     }
-    await mainWeapon.update({ "system.magazine.value": currentAmmo - ammoCost });
-    if (firedWeapon.system.magazine?.max) await firedWeapon.update({ "system.magazine.value": firedWeapon.system.magazine.max });
   }
+  return cost;
+}
 
-  new Dialog({
-    title: `Autosear Damage - ${mainWeapon.name}`,
-    content: `
-      <div style="margin-bottom: 10px;"><p>Did the attack hit? If so, by how much did you beat the DV?</p></div>
-      <div class="form-group" style="display: flex; align-items: center; margin-bottom: 10px;">
-        <label style="flex: 1; font-weight: bold;">Multiplier:</label>
-        <input id="autosear-multiplier" type="number" value="1" min="1" max="5" style="width: 60px; text-align: center;"/>
-      </div>
-      <div class="form-group" style="display: flex; align-items: center; margin-bottom: 10px;">
-        <label style="flex: 1; font-weight: bold;">Ammo Type:</label>
-        <select id="autosear-ammo" style="width: 140px;">
-          <option value="basic">Basic</option>
-          <option value="rubber">Rubber</option>
-          <option value="armorPiercing">Armor-Piercing</option>
-        </select>
-      </div>
-      <div class="form-group" style="display: flex; align-items: center; margin-bottom: 15px;">
-        <label style="flex: 1; font-weight: bold;">Weapon Type:</label>
-        <select id="autosear-weapon-type" style="width: 140px;">
-          <option value="standard">Standard</option>
-          <option value="tech">Tech (50% Armor Ignore)</option>
-          <option value="power">Power (+10 Crit Dmg)</option>
-        </select>
-      </div>
-    `,
-    buttons: {
-      hit: {
-        icon: '<i class="fas fa-crosshairs"></i>',
-        label: "Hit! Roll Damage",
-        callback: async (html) => {
-          let mult = parseInt(html.find('#autosear-multiplier').val()) || 1;
-          let selectedAmmo = html.find('#autosear-ammo').val();
-          let selectedWeaponType = html.find('#autosear-weapon-type').val();
-          
-          let roll = await new Roll(`2d6 * ${mult}`).evaluate();
-          let keptDice = roll.dice[0].results.map(r => r.result);
-          
-          let countSixes = keptDice.filter(d => d === 6).length;
-          let isCrit = countSixes >= 2;
-          
-          // Logic for Ammo and Weapon Type combinations
-          let ammoDisplay = selectedAmmo === "rubber" ? "Rubber" : selectedAmmo === "armorPiercing" ? "Armor-Piercing" : "Basic";
-          let weaponDisplay = selectedWeaponType === "tech" ? "Tech - " : selectedWeaponType === "power" ? "Power - " : "";
-          let fullDisplayName = weaponDisplay + ammoDisplay;
+function isEfficient(item) {
+  return !!item?.getFlag(FLAG_SCOPE, FLAG_KEY);
+}
 
-          let ablationValue = selectedAmmo === "rubber" ? 0 : selectedAmmo === "armorPiercing" ? 2 : 1;
-          let ignoreArmor = selectedWeaponType === "tech" ? 50 : 0;
-          let bonusDamage = isCrit ? (selectedWeaponType === "power" ? 10 : 5) : 0;
-          
-          let diceSizeClass = keptDice.length > 5 ? "d6-30" : "d6-60";
-          let diceHTML = keptDice.map(d => {
-            if (isCrit && d === 6) {
-              return `<img class="d6 ${diceSizeClass}" src="systems/cyberpunk-red-core/icons/dice/red/d6_6_preem.svg" />`;
-            }
-            return `<img class="d6 ${diceSizeClass}" src="systems/cyberpunk-red-core/icons/dice/black/d6_${d}.svg" />`;
-          }).join("");
-
-          ChatMessage.create({
-            user: game.userId,
-            speaker: ChatMessage.getSpeaker({ actor: actor }),
-            content: `
-              <div class="rollcard">
-                <div class="rollcard-top"><div class="cpr-block chat-rollTitle-stat"><div class="text-center text-padding-top text-normal text-semi">Autosear Damage (${mainWeapon.name})</div><div class="rollcard-subtitle"><div class="rollcard-subtitle-center text-small">Damage</div><div class="rollcard-subtitle-right"><a class="clickable" data-action="applyDamage" data-scope="global" data-total-damage="${roll.total}" data-bonus-damage="${bonusDamage}" data-damage-location="body" data-damage-lethal="true" data-ablation="${ablationValue}" data-ammo-variety="${selectedAmmo}" data-ignore-armor-percent="${ignoreArmor}" data-ignore-below-sp="0"><i class="fas fa-bolt" data-tooltip="Apply damage to selected Token(s)."></i></a></div><div class="rollcard-subtitle-2-center text-small">${fullDisplayName}</div></div></div></div>
-                <div class="rollcard-bottom"><div class="cpr-block"><div class="d6-rollcard-data"><div class="d6-dice-div">${diceHTML}</div><div class="d6-number-div"><span class="clickable text-semi" data-action="toggleVisibility" data-visible-element="d6-data-details">${roll.total}</span></div><div class="d6-data-div">${bonusDamage > 0 ? `<div class="text-normal text-semi">Critical Damage: ${bonusDamage}</div>` : ""}<div class="d6-data-details hide">Formula: ${roll.formula}<br>Dice: ${keptDice.join(", ")}</div></div></div></div></div>
-              </div>`,
-            rolls: [roll],
-            type: CONST.CHAT_MESSAGE_TYPES?.ROLL ?? 5
-          });
-        }
+async function setEfficient(item, next) {
+  try {
+    await item.setFlag(FLAG_SCOPE, FLAG_KEY, next);
+    if (next) {
+      const firetype = item.getFlag?.("cyberpunk-red-core", "firetype");
+      if (firetype && firetype !== "single") {
+        await item.unsetFlag("cyberpunk-red-core", "firetype");
       }
     }
-  }).render(true);
-});
+  } catch (err) {
+    logError("Efficient toggle", err, true);
+  }
+}
+
+function getAutofireSkill(actor) {
+  const skill = actor?.items?.find(i => i.type === "skill" && /autofire/i.test(i.name || ""));
+  return {
+    name: skill?.name ?? "Autofire",
+    level: Number(skill?.system?.level ?? 0)
+  };
+}
+
+// ---------------- Actor sheet: Efficient toggle ----------------
+
+function injectEfficient(app, html) {
+  const el = getElement(html);
+  if (!el) return;
+  const actor = app.actor ?? app.document;
+  if (!actor || !el.querySelector(".weapon-grid")) return;
+
+  el.querySelectorAll(".weapon-grid li").forEach(li => {
+    if (li.textContent.trim().startsWith("Efficient")) li.remove();
+  });
+
+  for (const grid of el.querySelectorAll(".weapon-grid[data-item-id]")) {
+    const item = actor.items.get(grid.dataset.itemId);
+    if (!getEfficientCost(item)) continue;
+    const list = grid.querySelector("ul");
+    if (!list) continue;
+
+    const checked = isEfficient(item);
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <span class="text-padding-sides-small">Efficient</span>
+      <a class="fire-checkbox" data-item-id="${item.id}">
+        <i class="${checked ? "far fa-circle-dot" : "far fa-circle"} text-padding-right-smallest"></i>
+      </a>`;
+    li.querySelector("a").addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      setEfficient(item, !isEfficient(item));
+    });
+    list.appendChild(li);
+    grid.style.height = "auto";
+    grid.style.minHeight = "80px";
+
+    // Turn off Efficient if another native fire mode is selected
+    for (const nativeBox of list.querySelectorAll("a.fire-checkbox[data-fire-mode]")) {
+      if (nativeBox.dataset.efficientListener) continue;
+      nativeBox.dataset.efficientListener = "1";
+      nativeBox.addEventListener("click", () => {
+        if (isEfficient(item)) setEfficient(item, false);
+      });
+    }
+  }
+}
+
+// ---------------- Fake Autofire (normal attack + Autofire skill/card + custom ammo cost) ----------------
+
+function convertToFakeAutofire(cprRoll, item, cost) {
+  if (!cprRoll || cprRoll._sanctumFakeAutofire) return cprRoll;
+  cprRoll._sanctumFakeAutofire = true;
+
+  const { name, level } = getAutofireSkill(item.actor);
+  cprRoll.skillName = name;
+  cprRoll.skillValue = level;
+  cprRoll.rollCard = `systems/${game.system.id}/templates/chat/cpr-autofire-rollcard.hbs`;
+
+  if (typeof cprRoll.roll === "function") {
+    const origRoll = cprRoll.roll.bind(cprRoll);
+    cprRoll.roll = async function (...args) {
+      const res = await origRoll(...args);
+
+      // CPR already spends 1 bullet for the normal attack; spend the remaining (cost - 1)
+      setTimeout(async () => {
+        try {
+          const nowMag = Number(item.system?.magazine?.value ?? 0);
+          const targetMag = Math.max(0, nowMag - (cost - 1));
+          await item.update({ "system.magazine.value": targetMag });
+          console.log(`%c${LOG_PREFIX} Ammo -> ${targetMag} (spent ${cost} total)`, "color: #4caf50");
+        } catch (err) {
+          logError("ammo deduction", err);
+        }
+      }, 150);
+
+      return res;
+    };
+  }
+
+  return cprRoll;
+}
+
+function patchProto(proto) {
+  if (!proto?.createRoll || proto.createRoll.__sanctumEfficient) return false;
+  const orig = proto.createRoll;
+  const wrapped = function (type, ...rest) {
+    const cost = getEfficientCost(this);
+    if (this.type === "weapon" && cost > 0 && isEfficient(this)) {
+      if (type === "attack") {
+        const mag = Number(this.system?.magazine?.value ?? 0);
+        if (mag < cost) {
+          ui.notifications?.warn(`${this.name}: Not enough ammo for Efficient Autofire (needs ${cost}, has ${mag}).`);
+          return null;
+        }
+        const result = orig.call(this, "attack", ...rest);
+        return result instanceof Promise
+          ? result.then(r => convertToFakeAutofire(r, this, cost))
+          : convertToFakeAutofire(result, this, cost);
+      }
+    }
+    return orig.call(this, type, ...rest);
+  };
+  wrapped.__sanctumEfficient = true;
+  proto.createRoll = wrapped;
+  return true;
+}
+
+// ---------------- Registration (once) ----------------
+
+const HOOKS = [
+  ["renderActorSheet", (app, html) => injectEfficient(app, html)],
+  ["renderActorSheetV2", (app, html) => injectEfficient(app, html)],
+  ["updateItem", (item, changes, _options, userId) => {
+    if (userId !== game.user.id) return;
+    if (item.type !== "weapon" || !item.actor || !changes.system?.installedItems) return;
+    if (isEfficient(item) && !getEfficientCost(item)) {
+      setEfficient(item, false);
+    }
+  }]
+];
+
+function register() {
+  const prev = globalThis._sanctumEfficientHooks;
+  if (prev) for (const [name, id] of prev) Hooks.off(name, id);
+  globalThis._sanctumEfficientHooks = HOOKS.map(([name, fn]) => [name, Hooks.on(name, fn)]);
+
+  let patched = patchProto(CONFIG.Item.documentClass?.prototype);
+  const sampleWeapon = game.items?.find(i => i.type === "weapon")
+    ?? game.actors?.contents.flatMap(a => a.items.contents).find(i => i.type === "weapon");
+  if (sampleWeapon) {
+    patched = patchProto(Object.getPrototypeOf(sampleWeapon)) || patched;
+  }
+
+  if (patched) {
+    console.log(`%c${LOG_PREFIX} Ready (Efficient Autosear: 6, Shotgun ACG: 4)`, "color: #4caf50; font-weight: bold");
+  } else {
+    console.warn(`${LOG_PREFIX} Could not find createRoll to patch`);
+  }
+}
+
+if (globalThis.game?.ready) register();
+else Hooks.once("ready", register);
