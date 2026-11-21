@@ -1,7 +1,8 @@
 // ============================================
-// Sanctum - Tech Rebuild / Power Rebuild (Standalone)
-// Automatically detects installed "Tech Rebuild" and "Power Rebuild" upgrades
+// Sanctum - Tech Rebuild / Power Rebuild / Bleedout (Standalone)
+// Automatically detects installed "Tech Rebuild", "Power Rebuild", and "Bleedout" upgrades
 // Handles normal crits AND explosive ammo crits
+// Adds a toggle inside the weapon sheet to deactivate +10 crit damage
 // ============================================
 
 console.log("%cSanctum Tech/Power Rebuild | Loading", "color: #ff6b00; font-weight: bold");
@@ -103,8 +104,65 @@ function isTechWeapon(item) {
   return hasInstalledUpgrade(item, "tech rebuild");
 }
 
+function hasBonusCritUpgrade(item) {
+  return hasInstalledUpgrade(item, "power rebuild") || hasInstalledUpgrade(item, "bleedout");
+}
+
+function isPowerCritDisabled(item) {
+  return !!item?.getFlag(FLAG_SCOPE, "powerCritDisabled");
+}
+
 function isPowerWeapon(item) {
-  return hasInstalledUpgrade(item, "power rebuild");
+  return hasBonusCritUpgrade(item) && !isPowerCritDisabled(item);
+}
+
+// ---------------- Item sheet: Bonus Crit toggle ----------------
+
+function doInjectWeapon(html, item) {
+  const el = getElement(html);
+  if (!el || !item || item.type !== "weapon") return false;
+
+  el.querySelectorAll(".power-crit-flag").forEach(n => n.remove());
+  if (!hasBonusCritUpgrade(item)) return true;
+
+  const items = Array.from(el.querySelectorAll("li.item"));
+  const anchor = items.find(li => li.textContent.includes("Has Suppressive Fire"))
+    ?? items.find(li => /ignore\s*armor/i.test(li.textContent))
+    ?? items.find(li => li.querySelector(".setting-name"));
+  if (!anchor) return false;
+
+  const active = !isPowerCritDisabled(item);
+  const li = document.createElement("li");
+  li.className = "item flexrow power-crit-flag";
+  const iconClass = active ? "far fa-circle-check" : "far fa-circle";
+  li.innerHTML = `
+    <div class="item flexrow setting-name text-nowrap">Bonus Crit (+10)</div>
+    <div class="item flexrow setting-value text-nowrap item-end">
+      <a class="item-checkbox" data-flag="powerCritDisabled" title="Toggle Power Rebuild / Bleedout +10 critical damage">
+        <i class="${iconClass}"></i>
+      </a>
+    </div>`;
+
+  li.querySelector("a.item-checkbox").addEventListener("click", async (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    ev.stopImmediatePropagation();
+    try {
+      await item.setFlag(FLAG_SCOPE, "powerCritDisabled", !isPowerCritDisabled(item));
+    } catch (err) {
+      logError("toggle powerCritDisabled", err, true);
+    }
+  });
+
+  anchor.insertAdjacentElement("afterend", li);
+  return true;
+}
+
+function tryInjectWeapon(app, html) {
+  const item = app.item ?? app.document;
+  if (!item || item.type !== "weapon") return;
+  if (doInjectWeapon(html, item)) return;
+  setTimeout(() => doInjectWeapon(getElement(app.element) || getElement(html), item), 100);
 }
 
 // ---------------- Actor sheet: Charged toggle ----------------
@@ -210,8 +268,8 @@ function bindDamageSourceCapture(message, html) {
 }
 
 /**
- * Identify the weapon that produced a damage card.
- * Returns { item, actor, via } or null. Never looks outside the attacker.
+- Identify the weapon that produced a damage card.
+- Returns { item, actor, via } or null. Never looks outside the attacker.
  */
 function identifyDamageWeapon(content, speaker, flags) {
   const title = getDamageCardTitle(content);
@@ -240,8 +298,6 @@ function identifyDamageWeapon(content, speaker, flags) {
   const matches = findWeaponsByTitle(actor, title);
   if (matches.length === 1) return { item: matches[0], actor, via: "title" };
   if (matches.length > 1) {
-    // Several identically named weapons: only treat it as a power crit if they
-    // all have Power Rebuild installed, otherwise it's ambiguous -> not a power weapon.
     const allPower = matches.every(i => isPowerWeapon(i));
     return { item: allPower ? matches[0] : null, actor, via: "title-ambiguous" };
   }
@@ -319,14 +375,18 @@ function lastCritIsPower() {
 // ---------------- Registration (once) ----------------
 
 const HOOKS = [
+  ["renderItemSheet", (app, html) => tryInjectWeapon(app, html)],
+  ["renderItemSheetV2", (app, html) => tryInjectWeapon(app, html)],
   ["renderActorSheet", (app, html) => injectCharged(app, html)],
   ["renderActorSheetV2", (app, html) => injectCharged(app, html)],
   ["updateItem", (item, changes, _options, userId) => {
     if (userId !== game.user.id) return;
     if (item.type !== "weapon" || !item.actor || !changes.system?.installedItems) return;
-    // If Tech Rebuild was uninstalled while Charged, restore original armor-ignore values
     if (item.getFlag(FLAG_SCOPE, "isCharged") && !isTechWeapon(item)) {
       setCharged(item, false);
+    }
+    if (isPowerCritDisabled(item) && !hasBonusCritUpgrade(item)) {
+      item.unsetFlag(FLAG_SCOPE, "powerCritDisabled");
     }
   }],
   ["renderChatMessage", bindDamageSourceCapture],
@@ -354,7 +414,7 @@ function register() {
     proto._applyDamage = wrapped;
   }
 
-  console.log(`%c${LOG_PREFIX} Tech/Power Rebuild ready (automatic upgrade detection)`, "color: #ff6b00; font-weight: bold");
+  console.log(`%c${LOG_PREFIX} Tech/Power/Bleedout ready`, "color: #ff6b00; font-weight: bold");
 }
 
 if (globalThis.game?.ready) register();
