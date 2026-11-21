@@ -107,6 +107,18 @@ async function toggleEfficient(item, hudApp) {
   hudApp?.refresh?.();
 }
 
+async function toggleAirstrike(item, hudApp) {
+  const next = !item.getFlag(SANCTUM_FLAG_SCOPE, "isAirstrike");
+  await item.setFlag(SANCTUM_FLAG_SCOPE, "isAirstrike", next);
+  hudApp?.refresh?.();
+}
+
+async function toggleKneel(item, hudApp) {
+  const next = !item.getFlag(SANCTUM_FLAG_SCOPE, "isKneel");
+  await item.setFlag(SANCTUM_FLAG_SCOPE, "isKneel", next);
+  hudApp?.refresh?.();
+}
+
 function getWeaponToggles(item) {
   const toggles = [];
   if (!item || item.type !== "weapon") return toggles;
@@ -121,6 +133,16 @@ function getWeaponToggles(item) {
     });
   }
 
+  if (hasInstalledUpgrade(item, "kneel")) {
+    toggles.push({
+      key: "kneel",
+      label: "KNEEL!",
+      active: !!item.getFlag(SANCTUM_FLAG_SCOPE, "isKneel"),
+      title: "KNEEL!: +5 Critical Damage (stacks with Power Rebuild / Bleedout)",
+      onClick: (hudApp) => toggleKneel(item, hudApp),
+    });
+  }
+
   if (hasInstalledUpgrade(item, "cocking lever")) {
     toggles.push({
       key: "cocked",
@@ -128,6 +150,16 @@ function getWeaponToggles(item) {
       active: !!item.getFlag(SANCTUM_FLAG_SCOPE, "isCocked"),
       title: "Cocking Lever: Cocked (+1d6 damage, +1 ablation)",
       onClick: (hudApp) => toggleCocked(item, hudApp),
+    });
+  }
+
+  if (hasInstalledUpgrade(item, "airstrike")) {
+    toggles.push({
+      key: "airstrike",
+      label: "AIRSTRIKE",
+      active: !!item.getFlag(SANCTUM_FLAG_SCOPE, "isAirstrike"),
+      title: "Airstrike: +1d6 damage",
+      onClick: (hudApp) => toggleAirstrike(item, hudApp),
     });
   }
 
@@ -275,13 +307,11 @@ Hooks.on("renderCPRCombatHUD", (app, html, data) => {
     const toggles = getWeaponToggles(item);
     if (!toggles.length) continue;
 
-    // Prefer a container element that itself carries data-item-id, otherwise use the LCA of the weapon's buttons
     const card =
       nodes.find((n) => n.tagName !== "BUTTON" && n.tagName !== "A") ??
       findLowestCommonAncestor(nodes);
 
     if (!card || card.querySelector(".chud-sanctum-toggles")) continue;
-    // Skip if this container is actually the gear panel row already handled above
     if (card.querySelector('[data-action="equip-cycle"]')) continue;
 
     card.appendChild(buildToggleBar(toggles, app, false));
@@ -366,7 +396,6 @@ function buildProgramRow(actor, deck, prog, hudApp) {
   const mainBtn = document.createElement("button");
   mainBtn.type = "button";
 
-  // Foundry HTML tooltip on hover
   const actionHint = isAttacker
     ? "Click: Attack • Right-click: Sheet"
     : `Click: ${isRezzed ? "Derez" : "Rez"} • Right-click: Sheet`;
@@ -434,7 +463,6 @@ function buildProgramRow(actor, deck, prog, hudApp) {
 
   row.appendChild(mainBtn);
 
-  // Secondary action button: DMG if it has damage dice, DEF for Rezzed Boosters/Defenders
   if (isAttacker && hasDamage) {
     row.appendChild(
       makeMiniBtn("DMG", `Roll Damage for ${prog.name}`, (ev) =>
@@ -449,7 +477,6 @@ function buildProgramRow(actor, deck, prog, hudApp) {
     );
   }
 
-  // Post program description to chat (available for all programs)
   const chatBtn = makeMiniBtn("", `Post ${prog.name} description to chat`, () =>
     postProgramToChat(actor, prog)
   );
@@ -548,7 +575,6 @@ async function rollProgram(event, actor, deck, prog, executionType, hudApp) {
       return;
     }
 
-    // Fallback if CPR left the damage formula blank (e.g. Black ICE-only attackers)
     if (executionType === "damage" && !cprRoll.formula) {
       const std = prog.system.damage?.standard?.trim();
       const bi = prog.system.damage?.blackIce?.trim();
@@ -573,7 +599,6 @@ async function rollProgram(event, actor, deck, prog, executionType, hudApp) {
 
     await cprRoll.roll();
 
-    // Consume LUCK if spent in the roll dialog
     if (Number.isInteger(cprRoll.luck) && cprRoll.luck > 0) {
       const luckStat = actor.system.stats.luck.value;
       await actor.update({
@@ -592,7 +617,6 @@ async function rollProgram(event, actor, deck, prog, executionType, hudApp) {
 
     CPRChat.RenderRollCard(cprRoll);
 
-    // Auto-post effect description for effect-only attacker programs (like Overheat)
     const hasDamage = Boolean(
       prog.system.damage?.standard?.trim() || prog.system.damage?.blackIce?.trim()
     );
