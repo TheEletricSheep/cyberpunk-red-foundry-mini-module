@@ -13,6 +13,197 @@ async function getCprModules() {
   return _cprModules;
 }
 
+// ============================================
+// Sanctum Weapon Toggle Helpers
+// ============================================
+
+const SANCTUM_FLAG_SCOPE = "world";
+
+function hasInstalledUpgrade(item, keyword) {
+  if (!item || item.type !== "weapon" || !item.actor) return false;
+  const upgradeIds = item.system?.installedItems?.list;
+  if (!Array.isArray(upgradeIds) || !upgradeIds.length) return false;
+
+  const target = keyword.toLowerCase();
+  for (const id of upgradeIds) {
+    const upg = item.actor.items.get(id);
+    if (upg && upg.type === "itemUpgrade") {
+      if ((upg.name || "").toLowerCase().includes(target)) return true;
+    }
+  }
+  return false;
+}
+
+function getEfficientCost(item) {
+  if (!item || item.type !== "weapon" || !item.actor) return 0;
+  const upgradeIds = item.system?.installedItems?.list;
+  if (!Array.isArray(upgradeIds) || !upgradeIds.length) return 0;
+
+  let cost = 0;
+  for (const id of upgradeIds) {
+    const upg = item.actor.items.get(id);
+    if (!upg || upg.type !== "itemUpgrade") continue;
+    const name = (upg.name || "").toLowerCase();
+
+    if (name.includes("shotgun automatic control group")) {
+      cost = cost ? Math.min(cost, 4) : 4;
+    } else if (name.includes("efficient autosear")) {
+      cost = cost ? Math.min(cost, 6) : 6;
+    }
+  }
+  return cost;
+}
+
+async function toggleCharged(item, hudApp) {
+  const next = !item.getFlag(SANCTUM_FLAG_SCOPE, "isCharged");
+  await item.setFlag(SANCTUM_FLAG_SCOPE, "isCharged", next);
+
+  if (next) {
+    let prev = item.getFlag(SANCTUM_FLAG_SCOPE, "chargedArmorPrev");
+    if (!prev) {
+      prev = {
+        canIgnoreArmor: !!item.system?.canIgnoreArmor,
+        ignoreArmorPercent: Number(item.system?.ignoreArmorPercent) || 0,
+      };
+      await item.setFlag(SANCTUM_FLAG_SCOPE, "chargedArmorPrev", prev);
+    }
+    const keepNative = prev.canIgnoreArmor && prev.ignoreArmorPercent >= 50;
+    if (!keepNative) {
+      await item.update({
+        "system.canIgnoreArmor": true,
+        "system.ignoreArmorPercent": 50,
+      });
+    }
+  } else {
+    const prev = item.getFlag(SANCTUM_FLAG_SCOPE, "chargedArmorPrev") ?? {
+      canIgnoreArmor: false,
+      ignoreArmorPercent: 0,
+    };
+    await item.update({
+      "system.canIgnoreArmor": prev.canIgnoreArmor,
+      "system.ignoreArmorPercent": prev.ignoreArmorPercent,
+    });
+    await item.unsetFlag(SANCTUM_FLAG_SCOPE, "chargedArmorPrev");
+  }
+
+  hudApp?.refresh?.();
+}
+
+async function toggleCocked(item, hudApp) {
+  const next = !item.getFlag(SANCTUM_FLAG_SCOPE, "isCocked");
+  await item.setFlag(SANCTUM_FLAG_SCOPE, "isCocked", next);
+  hudApp?.refresh?.();
+}
+
+async function toggleEfficient(item, hudApp) {
+  const next = !item.getFlag(SANCTUM_FLAG_SCOPE, "isEfficient");
+  await item.setFlag(SANCTUM_FLAG_SCOPE, "isEfficient", next);
+  if (next) {
+    const firetype = item.getFlag?.("cyberpunk-red-core", "firetype");
+    if (firetype && firetype !== "single") {
+      await item.unsetFlag("cyberpunk-red-core", "firetype");
+    }
+  }
+  hudApp?.refresh?.();
+}
+
+function getWeaponToggles(item) {
+  const toggles = [];
+  if (!item || item.type !== "weapon") return toggles;
+
+  if (hasInstalledUpgrade(item, "tech rebuild")) {
+    toggles.push({
+      key: "charged",
+      label: "CHARGED",
+      active: !!item.getFlag(SANCTUM_FLAG_SCOPE, "isCharged"),
+      title: "Tech Rebuild: Charged (Ignore 50% SP)",
+      onClick: (hudApp) => toggleCharged(item, hudApp),
+    });
+  }
+
+  if (hasInstalledUpgrade(item, "cocking lever")) {
+    toggles.push({
+      key: "cocked",
+      label: "COCKED",
+      active: !!item.getFlag(SANCTUM_FLAG_SCOPE, "isCocked"),
+      title: "Cocking Lever: Cocked (+1d6 damage, +1 ablation)",
+      onClick: (hudApp) => toggleCocked(item, hudApp),
+    });
+  }
+
+  const effCost = getEfficientCost(item);
+  if (effCost > 0) {
+    toggles.push({
+      key: "efficient",
+      label: `EFFICIENT (${effCost})`,
+      active: !!item.getFlag(SANCTUM_FLAG_SCOPE, "isEfficient"),
+      title: `Efficient Autofire (${effCost} ammo)`,
+      onClick: (hudApp) => toggleEfficient(item, hudApp),
+    });
+  }
+
+  return toggles;
+}
+
+function buildToggleBar(toggles, hudApp, compact = false) {
+  const bar = document.createElement("div");
+  bar.className = "chud-sanctum-toggles";
+  Object.assign(bar.style, {
+    display: "inline-flex",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: "4px",
+    marginRight: compact ? "6px" : "0",
+    marginTop: compact ? "0" : "4px",
+  });
+
+  for (const t of toggles) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `chud-sanctum-toggle chud-sanctum-${t.key}`;
+    btn.textContent = t.label;
+    btn.title = t.title;
+    Object.assign(btn.style, {
+      flex: "0 0 auto",
+      width: "auto",
+      padding: compact ? "2px 6px" : "2px 7px",
+      fontSize: "10px",
+      fontWeight: "700",
+      letterSpacing: "0.04em",
+      background: t.active ? "rgba(209, 52, 67, 0.28)" : "#14161c",
+      color: t.active ? "#ffffff" : "#a4b0be",
+      border: `1px solid ${t.active ? "#ff4757" : "#2c313d"}`,
+      borderRadius: "2px",
+      cursor: "pointer",
+      lineHeight: "1.35",
+    });
+
+    btn.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      await t.onClick(hudApp);
+    });
+
+    bar.appendChild(btn);
+  }
+
+  return bar;
+}
+
+function findLowestCommonAncestor(elements) {
+  if (!elements.length) return null;
+  if (elements.length === 1) return elements[0].parentElement;
+  let ancestor = elements[0].parentElement;
+  while (ancestor && !elements.every((el) => ancestor.contains(el))) {
+    ancestor = ancestor.parentElement;
+  }
+  return ancestor;
+}
+
+// ============================================
+// HUD Render Hook
+// ============================================
+
 Hooks.on("renderCPRCombatHUD", (app, html, data) => {
   const actor = app.actor;
   if (!actor) return;
@@ -20,45 +211,80 @@ Hooks.on("renderCPRCombatHUD", (app, html, data) => {
   const root = html instanceof jQuery ? html[0] : html;
   if (!root) return;
 
-  // 1. WEAPONS & EQUIP STATE: "PROGRAMS X/Y" button next to each Cyberdeck
+  // 1. WEAPONS & EQUIP STATE: "PROGRAMS X/Y" button next to each Cyberdeck + Sanctum toggles on Weapons
   if (data.panels?.gear) {
     const equipButtons = root.querySelectorAll('[data-action="equip-cycle"][data-item-id]');
     for (const equipBtn of equipButtons) {
-      const deck = actor.items.get(equipBtn.dataset.itemId);
-      if (deck?.type !== "cyberdeck") continue;
+      const item = actor.items.get(equipBtn.dataset.itemId);
+      if (!item) continue;
 
-      const slots = deck.system.installedItems?.slots ?? 0;
-      const used = deck.system.installedItems?.usedSlots ?? 0;
+      if (item.type === "cyberdeck") {
+        const slots = item.system.installedItems?.slots ?? 0;
+        const used = item.system.installedItems?.usedSlots ?? 0;
 
-      const progBtn = document.createElement("button");
-      progBtn.type = "button";
-      progBtn.className = "chud-prog-btn";
-      progBtn.textContent = `PROGRAMS ${used}/${slots}`;
-      progBtn.title = `Manage programs installed on ${deck.name}`;
-      Object.assign(progBtn.style, {
-        marginRight: "6px",
-        padding: "2px 8px",
-        fontSize: "11px",
-        fontWeight: "600",
-        letterSpacing: "0.04em",
-        background: "#14161c",
-        color: "#e2e6ef",
-        border: "1px solid #d13443",
-        borderRadius: "2px",
-        cursor: "pointer",
-        flex: "0 0 auto",
-        width: "auto",
-        lineHeight: "1.4",
-      });
+        const progBtn = document.createElement("button");
+        progBtn.type = "button";
+        progBtn.className = "chud-prog-btn";
+        progBtn.textContent = `PROGRAMS ${used}/${slots}`;
+        progBtn.title = `Manage programs installed on ${item.name}`;
+        Object.assign(progBtn.style, {
+          marginRight: "6px",
+          padding: "2px 8px",
+          fontSize: "11px",
+          fontWeight: "600",
+          letterSpacing: "0.04em",
+          background: "#14161c",
+          color: "#e2e6ef",
+          border: "1px solid #d13443",
+          borderRadius: "2px",
+          cursor: "pointer",
+          flex: "0 0 auto",
+          width: "auto",
+          lineHeight: "1.4",
+        });
 
-      progBtn.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        openProgramPicker(actor, deck, app);
-      });
+        progBtn.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          openProgramPicker(actor, item, app);
+        });
 
-      equipBtn.parentElement?.insertBefore(progBtn, equipBtn);
+        equipBtn.parentElement?.insertBefore(progBtn, equipBtn);
+      } else if (item.type === "weapon") {
+        const toggles = getWeaponToggles(item);
+        if (toggles.length && !equipBtn.parentElement?.querySelector(".chud-sanctum-toggles")) {
+          equipBtn.parentElement?.insertBefore(buildToggleBar(toggles, app, true), equipBtn);
+        }
+      }
     }
+  }
+
+  // 1b. MAIN HUD WEAPONS: Inject Sanctum toggles onto equipped weapon cards/rows
+  const weaponNodesById = new Map();
+  for (const el of root.querySelectorAll("[data-item-id]")) {
+    if (el.dataset.action === "equip-cycle") continue;
+    if (el.closest(".chud-sanctum-toggles")) continue;
+    const item = actor.items.get(el.dataset.itemId);
+    if (!item || item.type !== "weapon") continue;
+    if (!weaponNodesById.has(item.id)) weaponNodesById.set(item.id, []);
+    weaponNodesById.get(item.id).push(el);
+  }
+
+  for (const [itemId, nodes] of weaponNodesById.entries()) {
+    const item = actor.items.get(itemId);
+    const toggles = getWeaponToggles(item);
+    if (!toggles.length) continue;
+
+    // Prefer a container element that itself carries data-item-id, otherwise use the LCA of the weapon's buttons
+    const card =
+      nodes.find((n) => n.tagName !== "BUTTON" && n.tagName !== "A") ??
+      findLowestCommonAncestor(nodes);
+
+    if (!card || card.querySelector(".chud-sanctum-toggles")) continue;
+    // Skip if this container is actually the gear panel row already handled above
+    if (card.querySelector('[data-action="equip-cycle"]')) continue;
+
+    card.appendChild(buildToggleBar(toggles, app, false));
   }
 
   // 2. NET PANEL: List installed programs and run them on click
