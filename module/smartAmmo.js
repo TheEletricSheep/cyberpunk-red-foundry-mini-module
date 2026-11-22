@@ -15,7 +15,6 @@ function rollRedD10() {
   return first;
 }
 
-// 1. Extracted the roll logic into a reusable function
 async function doSmartAmmoCorrection(weaponName) {
   const die = rollRedD10();
   const total = die + 14;
@@ -65,12 +64,14 @@ Hooks.on("createChatMessage", async (message) => {
   const html = document.createElement("div");
   html.innerHTML = message.content;
 
-  // STORE SMART AMMO ATTACKS
+  // STORE SMART AMMO ATTACKS (only on the client that fired the weapon)
   const attackCard = html.querySelector(".d10-rollcard-data");
   const weaponName = html.querySelector(".chat-rollTitle-stat .text-center")?.textContent?.trim();
   const ammoType = html.querySelector(".rollcard-subtitle-2-center")?.textContent?.trim()?.toLowerCase() ?? "";
 
   if (attackCard && weaponName && ammoType.includes("smart")) {
+    if (!message.isAuthor) return;
+
     const attackTotal = Number(html.querySelector(".d10-number-div")?.textContent?.trim());
 
     lastSmartAttack = {
@@ -84,15 +85,16 @@ Hooks.on("createChatMessage", async (message) => {
     return;
   }
 
-  // DETECT MISS CARD (Auto-trigger)
+  // DETECT MISS CARD (Auto-trigger only on the attacker's client)
+  if (!lastSmartAttack || lastSmartAttack.triggered) return;
+
   const text = html.textContent ?? "";
   const missMatch = text.match(/missed.*?by\s+(\d+)/i);
 
-  if (missMatch && lastSmartAttack && !lastSmartAttack.triggered) {
+  if (missMatch) {
     const missBy = Number(missMatch[1]);
     console.log("Smart Ammo miss detected:", missBy);
 
-    // Smart Ammo only triggers on misses by 4 or less
     if (missBy > 5) return;
 
     lastSmartAttack.triggered = true;
@@ -100,15 +102,12 @@ Hooks.on("createChatMessage", async (message) => {
   }
 });
 
-// 2. Add a manual button to the chat card when it renders
-Hooks.on("renderChatMessage", (message, html, data) => {
-  // Only show the button to the person who fired the weapon (or the GM)
+Hooks.on("renderChatMessage", (message, html) => {
   if (!message.isAuthor && !game.user.isGM) return;
 
   const weaponName = html.find(".chat-rollTitle-stat .text-center").text().trim();
   const ammoType = html.find(".rollcard-subtitle-2-center").text().trim().toLowerCase();
 
-  // If this message is a Smart Ammo attack, inject a button at the bottom
   if (weaponName && ammoType.includes("smart")) {
     const btnHtml = $(`
       <button class="smart-ammo-manual-btn" style="margin-top: 5px; cursor: pointer;">
@@ -118,8 +117,7 @@ Hooks.on("renderChatMessage", (message, html, data) => {
 
     btnHtml.on("click", async (e) => {
       e.preventDefault();
-      
-      // Prevent double-firing if the auto-trigger somehow catches it later
+
       if (lastSmartAttack && lastSmartAttack.weaponName === weaponName) {
         lastSmartAttack.triggered = true;
       }
@@ -128,7 +126,6 @@ Hooks.on("renderChatMessage", (message, html, data) => {
       await doSmartAmmoCorrection(weaponName);
     });
 
-    // Append the button to the bottom of the chat card block
     html.find(".cpr-block").last().after(btnHtml);
   }
 });
