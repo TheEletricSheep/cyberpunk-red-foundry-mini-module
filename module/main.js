@@ -10,5 +10,6 @@ import "./shotgunrechamber.js";
 import "./tah-program-picker.js";
 import "./lever.js";
 import "./armorpiercing.js";
+import "./martialarts.js";
 
 console.log("Cyberpunk Red Mini Module Loaded");
